@@ -6,7 +6,7 @@ function App() {
       <SiteHeader/>
 
       <main>
-        <h1>باشگاه مشتریان</h1>
+        <h1 className="sr-only">باشگاه مشتریان</h1>
       </main>
     </div>
   );

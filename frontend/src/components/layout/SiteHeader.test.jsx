@@ -1,22 +1,51 @@
-import { fireEvent, render, screen, within, } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SiteHeader } from "./SiteHeader";
 
 describe("SiteHeader", () => {
-    it("opens the mobile navigation", () => {
+    it("toggles the mobile navigation with one accessible button", () => {
         render(<SiteHeader />);
+
         const menuButton = screen.getByRole("button", {
             name: "باز کردن منو",
         });
+
         expect(menuButton).toHaveAttribute("aria-expanded", "false");
+
+        expect(
+            screen.queryByRole("navigation", {
+                name: "ناوبری موبایل",
+            }),
+        ).not.toBeInTheDocument();
+
         fireEvent.click(menuButton);
-        expect(menuButton).not.toBeInTheDocument();
+
+        const closeButton = screen.getByRole("button", {
+            name: "بستن منو",
+        });
+
+        expect(closeButton).toBe(menuButton);
+        expect(closeButton).toHaveAttribute("aria-expanded", "true");
+
         expect(
-            screen.getByRole("button", { name: "بستن منوی کناری" }),
+            screen.getByRole("navigation", {
+                name: "ناوبری موبایل",
+            }),
         ).toBeInTheDocument();
+
+        fireEvent.click(closeButton);
+
         expect(
-            screen.getByRole("navigation", { name: "ناوبری موبایل" }),
-        ).toBeInTheDocument();
+            screen.getByRole("button", {
+                name: "باز کردن منو",
+            }),
+        ).toHaveAttribute("aria-expanded", "false");
+
+        expect(
+            screen.queryByRole("navigation", {
+                name: "ناوبری موبایل",
+            }),
+        ).not.toBeInTheDocument();
     });
     it("closes the mobile navigation after selecting a link", () => {
         render(<SiteHeader />);
@@ -66,43 +95,42 @@ describe("SiteHeader", () => {
             }),
         ).toHaveAttribute("href", "#join");
     });
-    it("closes the mobile drawer when the backdrop is clicked", () => {
-        render(<SiteHeader />);
-
-        fireEvent.click(
-            screen.getByRole("button", { name: "باز کردن منو" }),
-        );
-
-        fireEvent.click(
-            screen.getByRole("button", {
-                name: "بستن منو با کلیک روی پس زمینه",
-            }),
-        );
-
-        expect(
-            screen.queryByRole("navigation", { name: "ناوبری موبایل" }),
-        ).not.toBeInTheDocument();
-    });
-    it("closes the drawer from its own close button", () => {
-        render(<SiteHeader />);
-        fireEvent.click(
-            screen.getByRole("button", { name: "باز کردن منو" }),
-        );
-        const mobileNavigation = screen.getByRole("navigation", {
-            name: "ناوبری موبایل",
-        });
-        fireEvent.click(
-            within(mobileNavigation).getByRole("button", { name: "بستن منوی کناری" }),
-        );
-        expect(
-            screen.queryByRole("navigation", { name: "ناوبری موبایل" }),
-        ).not.toBeInTheDocument();
-    });
     it("shows an icon inside the mobile menu button", () => {
         render(<SiteHeader />);
         const menuButton = screen.getByRole("button", {
             name: "باز کردن منو",
         });
         expect(menuButton.querySelector("svg")).toBeInTheDocument();
+    });
+    it("renders the desktop navigation from the medium breakpoint", () => {
+        render(<SiteHeader />);
+
+        const desktopNavigation = screen.getByRole("navigation", {
+            name: "ناوبری اصلی",
+        });
+
+        expect(desktopNavigation).toHaveClass("hidden", "md:flex");
+
+        expect(
+            within(desktopNavigation).getByRole("link", {
+                name: "ورود",
+            }),
+        ).toHaveAttribute("href", "#join");
+    });
+    it("adds the scrolled header treatment after the page moves", () => {
+        Object.defineProperty(window, "scrollY", {
+            configurable: true,
+            writable: true,
+            value: 0,
+        });
+        render(<SiteHeader />);
+        const header = screen.getByRole("banner");
+        expect(header).not.toHaveClass("shadow-refined");
+        window.scrollY = 20;
+        fireEvent.scroll(window);
+        expect(header).toHaveClass("shadow-refined");
+        window.scrollY = 0;
+        fireEvent.scroll(window);
+        expect(header).not.toHaveClass("shadow-refined");
     });
 });
