@@ -47,7 +47,7 @@ export function HeroSection() {
                 <div className="grid items-end gap-12 lg:grid-cols-12 lg:gap-10">
                     <div className="lg:col-span-6 lg:pb-16">
                         <span
-                            className="eyebrow"
+                            className="eyebrow reveal"
                             data-reveal
                         >
                             جامعه تخصصی صنعت ساختمان
