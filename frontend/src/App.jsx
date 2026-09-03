@@ -1,12 +1,15 @@
 import { SiteHeader } from "./components/layout/SiteHeader";
+import { HeroSection } from "./components/sections/HeroSection";
+import { useReveal } from "./hooks/useReveal";
 
 function App() {
+  useReveal();
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SiteHeader/>
+      <SiteHeader />
 
       <main>
-        <h1 className="sr-only">باشگاه مشتریان</h1>
+        <HeroSection />
       </main>
     </div>
   );

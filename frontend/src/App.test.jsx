@@ -1,22 +1,80 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import {
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from "vitest";
+
 import App from "./App";
 
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
+
 describe("App", () => {
-    it("place the customer club heading inside the main content", () => {
+    it("renders the hero with its main heading and actions", () => {
         render(<App />);
-        const main = screen.getByRole("main");
+
+        const hero = screen.getByRole("region", {
+            name: /باشگاه مشتریان/,
+        });
+
+        expect(hero).toHaveAttribute("id", "hero");
+
+        const heading = within(hero).getByRole("heading", {
+            level: 1,
+        });
+
+        expect(heading).toHaveTextContent("باشگاه مشتریان");
+        expect(heading).toHaveTextContent("جایی برای");
+        expect(heading).toHaveTextContent("حرفه");
+
         expect(
-            within(main).getByRole("heading", { name:"باشگاه مشتریان"}),
-        ).toBeInTheDocument();
+            within(hero).getByRole("link", {
+                name: "عضویت در باشگاه",
+            }),
+        ).toHaveAttribute("href", "#join");
+
+        expect(
+            within(hero).getByRole("link", {
+                name: "مشاهده رویدادها",
+            }),
+        ).toHaveAttribute("href", "#events");
     });
+
     it("shows a customer-club home link in the site header", () => {
         render(<App />);
+
         const header = screen.getByRole("banner");
+
         expect(
             within(header).getByRole("link", {
-                name:"صفحه اصلی باشگاه مشتریان",
+                name: "صفحه اصلی باشگاه مشتریان",
             }),
         ).toHaveAttribute("href", "#hero");
+    });
+
+    it("reveals hero content when IntersectionObserver is unavailable", async () => {
+        vi.stubGlobal("IntersectionObserver", undefined);
+
+        render(<App />);
+
+        const heading = screen.getByRole("heading", {
+            level: 1,
+        });
+
+        await waitFor(() => {
+            expect(heading).toHaveAttribute(
+                "data-visible",
+                "true",
+            );
+        });
     });
 });
