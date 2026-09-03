@@ -10,4 +10,13 @@ describe("App", () => {
             within(main).getByRole("heading", { name:"باشگاه مشتریان"}),
         ).toBeInTheDocument();
     });
+    it("shows a customer-club home link in the site header", () => {
+        render(<App />);
+        const header = screen.getByRole("banner");
+        expect(
+            within(header).getByRole("link", {
+                name:"صفحه اصلی باشگاه مشتریان",
+            }),
+        ).toHaveAttribute("href", "#hero");
+    });
 });
