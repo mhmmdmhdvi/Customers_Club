@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
-import megatiteMark from "../../assets/megatite-mark.svg";
+import megatiteMark from "../../assets/branding/megatite-mark.svg";
 
 const navigation = [
     { label: "رویدادها", href: "#events" },
