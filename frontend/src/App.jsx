@@ -1,4 +1,5 @@
 import { SiteHeader } from "./components/layout/SiteHeader";
+import { AboutSection } from "./components/sections/AboutSection";
 import { BenefitsSection } from "./components/sections/BenefitsSection";
 import { EventsSection } from "./components/sections/EventsSection";
 import { HeroSection } from "./components/sections/HeroSection";
@@ -16,6 +17,7 @@ function App() {
         <BenefitsSection />
         <EventsSection />
         <MembershipSection />
+        <AboutSection />
       </main>
     </div>
   );

@@ -30,7 +30,7 @@ export function HeroSection() {
     return (
         <section
             id="hero"
-            aria-labelledby="hero-heading"
+            aria-label="بخش معرفی باشگاه مشتریان"
             className="relative overflow-hidden bg-background pt-28 sm:pt-32"
         >
             <div

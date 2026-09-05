@@ -23,7 +23,7 @@ describe("App", () => {
         render(<App />);
 
         const hero = screen.getByRole("region", {
-            name: /باشگاه مشتریان/,
+            name: "بخش معرفی باشگاه مشتریان",
         });
 
         expect(hero).toHaveAttribute("id", "hero");
@@ -101,5 +101,14 @@ describe("App", () => {
         });
 
         expect(membership).toHaveAttribute("id", "join");
+    });
+    it("renders the about section", () => {
+        render(<App />);
+
+        const about = screen.getByRole("region", {
+            name: /درباره باشگاه/,
+        });
+
+        expect(about).toHaveAttribute("id", "about");
     });
 });
