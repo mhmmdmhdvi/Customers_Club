@@ -43,7 +43,7 @@ export function MembershipSection() {
 
                     <a
                         href="#"
-                        className="reveal mt-12 inline-flex items-center justify-center bg-primary px-8 py-4 text-sm font-bold text-primary-foreground transition-colors duration-300 hover:opacity-90"
+                        className="reveal mt-12 inline-flex items-center justify-center bg-primary px-10 py-4 text-sm font-bold text-primary-foreground transition-colors duration-300 hover:opacity-90"
                         data-reveal
                         style={{
                             transitionDelay: "180ms",

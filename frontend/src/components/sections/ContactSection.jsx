@@ -18,7 +18,7 @@ export function ContactSection() {
         <section
             id="contact"
             aria-label="تماس با ما"
-            className="border-t border-border bg-surface py-28 sm:py-40"
+            className="border-t border-border bg-surface py-32 sm:py-44"
         >
             <div className="page-container">
 
