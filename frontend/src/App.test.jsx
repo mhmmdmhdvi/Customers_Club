@@ -93,4 +93,13 @@ describe("App", () => {
 
         expect(events).toHaveAttribute("id", "events");
     });
+    it("renders the membership section", () => {
+        render(<App />);
+
+        const membership = screen.getByRole("region", {
+            name: /عضویت/,
+        });
+
+        expect(membership).toHaveAttribute("id", "join");
+    });
 });
