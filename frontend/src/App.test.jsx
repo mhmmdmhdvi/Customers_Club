@@ -77,11 +77,20 @@ describe("App", () => {
             );
         });
     });
-    it ("renders the benefits section", () => {
+    it("renders the benefits section", () => {
         render(<App />);
         const benefits = screen.getByRole("region", {
             name: /مزایای باشگاه/,
         });
         expect(benefits).toHaveAttribute("id", "benefits");
+    });
+    it("renders the events section", () => {
+        render(<App />);
+
+        const events = screen.getByRole("region", {
+            name: /رویدادهای باشگاه/,
+        });
+
+        expect(events).toHaveAttribute("id", "events");
     });
 });

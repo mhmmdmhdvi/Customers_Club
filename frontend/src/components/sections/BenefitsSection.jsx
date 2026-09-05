@@ -1,27 +1,48 @@
+import {
+    Award,
+    CalendarDays,
+    GraduationCap,
+    HardHat,
+    Sparkles,
+    Users,
+} from "lucide-react";
+
 const benefits = [
     {
-        number: "01",
-        title: "آموزش تخصصی",
+        icon: CalendarDays,
+        title: "رویدادهای تخصصی",
         description:
-            "یادگیری تکنیک‌های حرفه‌ای نصب و استفاده صحیح از محصولات.",
+            "شرکت در رویدادها، ورکشاپ‌ها و برنامه‌های تخصصی صنعت ساختمان.",
     },
     {
-        number: "02",
-        title: "ارتباط حرفه‌ای",
+        icon: GraduationCap,
+        title: "آموزش و یادگیری",
         description:
-            "ساخت شبکه‌ای از متخصصان و فعالان صنعت ساختمان.",
+            "دسترسی به آموزش‌ها و تجربه‌های تخصصی برای ارتقای مهارت‌های حرفه‌ای.",
     },
     {
-        number: "03",
+        icon: Users,
+        title: "ارتباط با متخصصان",
+        description:
+            "فرصتی برای شبکه‌سازی و ارتباط با دیگر فعالان حرفه‌ای صنعت.",
+    },
+    {
+        icon: Award,
         title: "مزایای ویژه",
         description:
-            "دسترسی به پیشنهادها و فرصت‌های اختصاصی.",
+            "دسترسی به فرصت‌ها، خدمات و مزایای اختصاصی اعضای باشگاه.",
     },
     {
-        number: "04",
-        title: "پشتیبانی فنی",
+        icon: Sparkles,
+        title: "اطلاع از محصولات جدید",
         description:
-            "دریافت راهنمایی تخصصی برای پروژه‌های مختلف.",
+            "اولین نفر باشید که با محصولات و تکنولوژی‌های جدید آشنا می‌شوید.",
+    },
+    {
+        icon: HardHat,
+        title: "جامعه حرفه‌ای",
+        description:
+            "عضویت در جامعه‌ای از متخصصان، پیمانکاران و نصابان حرفه‌ای.",
     },
 ];
 
@@ -30,7 +51,7 @@ export function BenefitsSection() {
         <section
             id="benefits"
             aria-label="مزایای باشگاه"
-            className="bg-background py-24 sm:py-32"
+            className="border-t border-border bg-surface py-24 sm:py-32"    
         >
             <div className="page-container">
                 <div className="grid gap-12 lg:grid-cols-12">
@@ -62,29 +83,47 @@ export function BenefitsSection() {
                     </div>
 
                     <div className="lg:col-span-7">
-                        <div
-                            className="reveal grid border-t border-border sm:grid-cols-2"
-                            data-reveal
-                            style={{ transitionDelay: "180ms" }}
-                        >
-                            {benefits.map((benefit) => (
-                                <article
-                                    key={benefit.number}
-                                    className="border-b border-border py-8 sm:px-6"
-                                >
-                                    <span className="text-sm font-bold text-primary">
-                                        {benefit.number}
-                                    </span>
+                        <div className="grid border-t border-border sm:grid-cols-2">
+                            {benefits.map((benefit, index) => {
+                                const Icon = benefit.icon;
 
-                                    <h3 className="mt-4 text-xl font-bold text-foreground">
-                                        {benefit.title}
-                                    </h3>
+                                return (
+                                    <article
+                                        key={benefit.title}
+                                        data-reveal
+                                        style={{
+                                            transitionDelay: `${index * 60}ms`,
+                                        }}
+                                        className="reveal group relative border-b border-border p-7 transition-colors duration-300 hover:bg-background sm:p-8 sm:[&:nth-child(odd)]:border-l sm:[&:nth-child(odd)]:border-border"
+                                    >
+                                        <span
+                                            className="absolute right-0 top-0 h-px w-0 bg-primary transition-all duration-500 group-hover:w-full"
+                                            aria-hidden="true"
+                                        />
 
-                                    <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                                        {benefit.description}
-                                    </p>
-                                </article>
-                            ))}
+                                        <div className="flex items-start gap-4">
+                                            <Icon
+                                                className="mt-0.5 size-6 shrink-0 text-primary"
+                                                strokeWidth={1.5}
+                                            />
+
+                                            <div>
+                                                <h3 className="text-base font-extrabold text-foreground">
+                                                    {benefit.title}
+                                                </h3>
+
+                                                <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                                                    {benefit.description}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <span className="absolute bottom-6 left-7 text-xs font-bold tabular-nums text-border-strong">
+                                            {String(index + 1).padStart(2, "0")}
+                                        </span>
+                                    </article>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
