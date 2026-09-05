@@ -77,4 +77,11 @@ describe("App", () => {
             );
         });
     });
+    it ("renders the benefits section", () => {
+        render(<App />);
+        const benefits = screen.getByRole("region", {
+            name: /مزایای باشگاه/,
+        });
+        expect(benefits).toHaveAttribute("id", "benefits");
+    });
 });
