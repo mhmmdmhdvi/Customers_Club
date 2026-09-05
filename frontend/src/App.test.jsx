@@ -111,4 +111,13 @@ describe("App", () => {
 
         expect(about).toHaveAttribute("id", "about");
     });
+    it("renders the contact section", () => {
+        render(<App />);
+
+        const contact = screen.getByRole("region", {
+            name: /تماس با ما/,
+        });
+
+        expect(contact).toHaveAttribute("id", "contact");
+    });
 });
