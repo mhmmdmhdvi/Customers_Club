@@ -1,0 +1,18 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="40" height="40" fill="#171512"/>
+    
+    <path
+        d="M10 28V12L20 21L30 12V28"
+        stroke="#F7F3EA"
+        stroke-width="2.8"
+        stroke-linejoin="miter"
+    />
+
+    <rect
+        x="10"
+        y="31"
+        width="20"
+        height="2"
+        fill="#E98B24"
+    />
+</svg>

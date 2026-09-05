@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import megatiteMark from "../../assets/megatite-mark.svg";
 
 const navigation = [
     { label: "رویدادها", href: "#events" },
@@ -41,12 +42,11 @@ export function SiteHeader() {
                     aria-label="صفحه اصلی باشگاه مشتریان"
                     className="flex items-center gap-3"
                 >
-                    <span
-                        className="grid size-10 place-items-center bg-ink text-base font-black text-ink-foreground"
-                        aria-hidden="true"
-                    >
-                        چ
-                    </span>
+                    <img
+                        src={megatiteMark}
+                        alt="Megatite"
+                        className="size-10"
+                    />
 
                     <span className="leading-tight">
                         <span className="block text-sm font-extrabold">

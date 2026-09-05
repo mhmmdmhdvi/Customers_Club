@@ -120,4 +120,11 @@ describe("App", () => {
 
         expect(contact).toHaveAttribute("id", "contact");
     });
+    it("renders the footer section", () => {
+        render(<App />);
+
+        const footer = screen.getByRole("contentinfo");
+
+        expect(footer).toBeInTheDocument();
+    });
 });

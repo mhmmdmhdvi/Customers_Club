@@ -1,0 +1,28 @@
+<svg
+    width="64"
+    height="64"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+>
+    <rect
+        width="64"
+        height="64"
+        fill="#171512"
+    />
+
+    <path
+        d="M16 44V20L32 34L48 20V44"
+        stroke="#F7F3EA"
+        stroke-width="4"
+        stroke-linejoin="miter"
+    />
+
+    <rect
+        x="16"
+        y="50"
+        width="32"
+        height="3"
+        fill="#E98B24"
+    />
+</svg>
