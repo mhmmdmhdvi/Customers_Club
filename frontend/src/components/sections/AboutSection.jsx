@@ -1,15 +1,15 @@
 const principles = [
     {
-        title: "ماموریت",
-        text: "ایجاد ارتباطی ارزشمند میان متخصصان، پیمانکاران و فعالان صنعت ساختمان.",
+        title: "تخصص‌محور",
+        text: "محتوا و رویدادها بر پایه نیاز واقعی مجریان و نصابان طراحی می‌شود.",
     },
     {
-        title: "چشم‌انداز",
-        text: "ساخت جامعه‌ای حرفه‌ای برای رشد و توسعه فعالان این حوزه.",
+        title: "بلندمدت",
+        text: "رابطه‌ای پایدار با کسانی که کیفیت اجرا را در پروژه‌ها می‌سازند.",
     },
     {
-        title: "ارزش‌ها",
-        text: "تعهد، کیفیت و یادگیری مستمر در مسیر حرفه‌ای اعضای باشگاه.",
+        title: "میدانی",
+        text: "آموزش عملی در کارگاه و پروژه، نه صرفاً محتوای تئوری.",
     },
 ];
 
@@ -47,20 +47,31 @@ export function AboutSection() {
                     <div className="lg:col-span-7">
 
                         <p
-                            className="reveal max-w-3xl text-base leading-8 text-muted-foreground sm:text-lg"
+                            className="reveal text-base leading-9 text-foreground sm:text-lg sm:leading-10"
+                            data-reveal
+                        >
+                            ماموریت ما ساختن یک جامعه حرفه‌ای پایدار پیرامون
+                            افرادی است که با چسب‌های ساختمانی، مصالح نصب و
+                            اجرای پروژه‌های ساختمانی کار می‌کنند؛ از پیمانکار
+                            و نصاب اسلب تا کاشی‌کار و فروشنده مصالح.
+                        </p>
+
+                        <p
+                            className="reveal mt-6 text-sm leading-8 text-muted-foreground sm:text-base sm:leading-9"
                             data-reveal
                             style={{
-                                transitionDelay: "120ms",
+                                transitionDelay: "80ms",
                             }}
                         >
-                            باشگاه مشتریان بستری برای ارتباط،
-                            یادگیری و رشد حرفه‌ای فعالان صنعت ساختمان است.
-                            ما تلاش می‌کنیم با ایجاد تجربه‌های ارزشمند،
-                            مسیر توسعه و همکاری اعضا را هموار کنیم.
+                            باور داریم کیفیت نهایی هر پروژه، حاصل دانش و دقت
+                            کسی است که محصول را اجرا می‌کند. به همین دلیل
+                            باشگاه را به‌عنوان بستری برای انتقال دانش فنی،
+                            تبادل تجربه و ایجاد ارتباط مستقیم میان متخصصان
+                            و تیم فنی طراحی کرده‌ایم.
                         </p>
 
 
-                        <div className="mt-12 grid border-t border-border sm:grid-cols-3">
+                        <div className="mt-12 grid gap-px border-t border-border bg-border sm:grid-cols-3">
 
                             {principles.map((item, index) => (
                                 <article
@@ -69,7 +80,7 @@ export function AboutSection() {
                                     style={{
                                         transitionDelay: `${index * 80}ms`,
                                     }}
-                                    className="reveal border-b border-border py-6 sm:border-l sm:border-border sm:px-6 last:border-l-0"
+                                    className="reveal bg-background py-7 sm:px-6 sm:first:pr-0"
                                 >
                                     <h3 className="text-sm font-extrabold text-foreground">
                                         {item.title}
