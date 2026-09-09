@@ -1,7 +1,9 @@
-function createOtpService(prisma) {
+const crypto = require("node:crypto");
+
+function createOtpService(prisma, { nodeEnv } = {}) {
 
     function generateCode() {
-        return Math.floor(100000 + Math.random() * 900000).toString();
+        return crypto.randomInt(100_000, 1_000_000).toString();
     }
 
     async function createOtp(phone) {
@@ -26,7 +28,9 @@ function createOtpService(prisma) {
             },
         });
 
-        console.log(`Generated OTP for ${phone}: ${code}`);
+        if (nodeEnv === "development") {
+            console.log(`Generated OTP for ${phone}: ${code}`);
+        }
     }
 
     async function verifyOtp(phone, code) {
