@@ -32,3 +32,22 @@ model OTPCode {
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+// A verification proof is not an authenticated member session.
+enum PhoneVerificationPurpose {
+  REGISTER
+  LOGIN
+}
+
+model PhoneVerification {
+  id        Int                      @id @default(autoincrement())
+  phone     String                   @db.VarChar(11)
+  tokenHash String                   @unique @db.VarChar(64)
+  purpose   PhoneVerificationPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime                 @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
