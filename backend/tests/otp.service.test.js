@@ -9,7 +9,7 @@ test("verifyOtp rejects a missing OTP", async () => {
     const service = createOtpService({
         oTPCode: {
             findFirst: async () => null,
-            update: async () => assert.fail("A missing OTP must not be updated"),
+            updateMany: async () => assert.fail("A missing OTP must not be updated"),
         },
     });
 
@@ -28,7 +28,7 @@ test("verifyOtp rejects an expired OTP", async (t) => {
                 expiresAt: new Date(999),
                 used: false,
             }),
-            update: async () => assert.fail("An expired OTP must not be updated"),
+            updateMany: async () => assert.fail("An expired OTP must not be updated"),
         },
     });
 
@@ -44,10 +44,19 @@ test("verifyOtp marks a valid OTP as used", async (t) => {
     const service = createOtpService({
         oTPCode: {
             findFirst: async () => ({ ...otp }),
-            update: async ({ where, data }) => {
-                assert.equal(where.id, otp.id);
+            updateMany: async ({ where, data }) => {
+                const matches = Object.entries(where).every(([field, value]) =>
+                    field === "expiresAt"
+                        ? otp.expiresAt > value.gt
+                        : otp[field] === value
+                );
+
+                if (!matches) {
+                    return { count: 0 };
+                }
+
                 Object.assign(otp, data);
-                return { ...otp };
+                return { count: 1 };
             },
         },
     });
@@ -75,12 +84,22 @@ function createVerificationFixture(t, used = false) {
                 const matches = Object.entries(where).every(
                     ([field, value]) => otp[field] === value
                 );
+
                 return matches ? { ...otp } : null;
             },
-            update: async ({ where, data }) => {
-                assert.equal(where.id, otp.id);
+            updateMany: async ({ where, data }) => {
+                const matches = Object.entries(where).every(([field, value]) =>
+                    field === "expiresAt"
+                        ? otp.expiresAt > value.gt
+                        : otp[field] === value
+                );
+
+                if (!matches) {
+                    return { count: 0 };
+                }
+
                 Object.assign(otp, data);
-                return { ...otp };
+                return { count: 1 };
             },
         },
     });
@@ -101,6 +120,7 @@ for (const [reason, phone, code, used] of rejectedAttempts) {
         await assert.rejects(service.verifyOtp(phone, code), {
             message: "Invalid OTP",
         });
+
         assert.equal(otp.used, used);
     });
 }
@@ -204,5 +224,25 @@ test("verifyOtp rejects an OTP at its exact expiration time", async (t) => {
     await assert.rejects(service.verifyOtp(PHONE, CODE), {
         message: "OTP expired",
     });
+
     assert.equal(otp.used, false);
+});
+
+test("verifyOtp allows only one of two overlapping attempts to succeed", async (t) => {
+    const { service, otp } = createVerificationFixture(t);
+
+    // Start both attempts without waiting for the first to finish.
+    const results = await Promise.allSettled([
+        service.verifyOtp(PHONE, CODE),
+        service.verifyOtp(PHONE, CODE),
+    ]);
+
+    const succeeded = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter((result) => result.status === "rejected");
+
+    assert.equal(succeeded.length, 1, "Only one verification may succeed");
+    assert.equal(rejected.length, 1);
+    assert.equal(succeeded[0].value, true);
+    assert.equal(rejected[0].reason.message, "Invalid OTP");
+    assert.equal(otp.used, true);
 });

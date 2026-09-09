@@ -1,7 +1,6 @@
 const crypto = require("node:crypto");
 
 function createOtpService(prisma, { nodeEnv } = {}) {
-
     function generateCode() {
         return crypto.randomInt(100_000, 1_000_000).toString();
     }
@@ -16,8 +15,8 @@ function createOtpService(prisma, { nodeEnv } = {}) {
                 used: true,
             },
         });
-        const code = generateCode();
 
+        const code = generateCode();
         const expiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
         await prisma.oTPCode.create({
@@ -44,20 +43,30 @@ function createOtpService(prisma, { nodeEnv } = {}) {
                 createdAt: "desc",
             },
         });
+
         if (!otp) {
             throw new Error("Invalid OTP");
         }
+
         if (otp.expiresAt <= new Date()) {
             throw new Error("OTP expired");
         }
-        await prisma.oTPCode.update({
+
+        const result = await prisma.oTPCode.updateMany({
             where: {
                 id: otp.id,
+                used: false,
+                expiresAt: { gt: new Date() },
             },
             data: {
                 used: true,
             },
         });
+
+        if (result.count !== 1) {
+            throw new Error("Invalid OTP");
+        }
+
         return true;
     }
 
