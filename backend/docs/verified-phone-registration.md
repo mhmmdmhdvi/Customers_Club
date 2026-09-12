@@ -71,27 +71,40 @@ response fields when integrated. Error messages for current OTP validation remai
 
 ## Verification and database safety
 
-Do not run migrations against the normal or production database as a first test.
-The delivered patch and application script do not run `migrate`, `db push`, seeds,
-installs, database resets, git commits, pushes, merges, or deployments.
+The 2026-09-12 project handoff reports completed local verification: 244 npm tests
+passed with no failures or skips BEFORE the new offline target-regression tests;
+separately, 10 registration DB checks and 12 session DB checks passed against
+customer_club_test_db / customer_club_test_user and verified their scoped cleanup.
+Prisma schema validation and client generation also succeeded as reported.
+The earlier 86-test registration-only count is historical, not the current baseline.
 
-Initial local check from the repository root:
+Both customer_club_db and customer_club_test_db had all four migrations applied
+at the last observation. An earlier launcher accidentally applied the verification
+and session migrations to the normal local development database; the missing test
+session migration was later applied deliberately through the explicit test config.
+No production-server migration was performed. There was no pre-incident snapshot,
+so the inspection does not prove all historical data was unchanged. See the
+[incident record and corrected procedure](registration-db-checks.md).
+
+Do not repeat local migrations, regenerate the client, reinstall dependencies or
+rerun the completed database checkers just for this documentation/offline-test update.
+The ordinary development server's session settings remain unconfirmed; ephemeral
+checker credentials did not configure it for manual Postman/browser login.
+
+For the new source-level target regressions only, from the repository root:
 ```powershell
-npm --prefix backend test
+node --test backend/tests/migration-target-isolation.test.js
 ```
-The registration foundation originally had 86 tests. The session batch adds further coverage; consult its verification report for the current expected total.
-The existing generated client must already be present, as for the current tests.
-The new tests use a fake DB, so this first check needs no migration.
+The new file uses isolated environment objects and blocked database imports; it
+needs no database connection or Prisma CLI execution. Its limits are documented
+in [registration-db-checks.md](registration-db-checks.md#offline-migration-target-regressions).
 
-Before exercising valid registration through Postman or merging:
-1. Rehearse migration/client generation with a dedicated local PostgreSQL test DB
-   and a separate test role. Inspect the connection target; never print its URL.
-2. Validate the schema, apply the NEW migration to that disposable DB, and generate
-   the client. Do not reset or rewrite old migrations.
-3. Run real database tests for OTP/proof rollback, duplicate phone constraints,
-   two simultaneous OTP submissions and two registration submissions, expiry,
-   and a wrong-purpose proof. Restore unrelated environment settings afterward.
-4. Verify the complete HTTP flow against that test DB and then rerun regressions.
+Future migration/deployment work still needs explicit target review, least-privilege
+credentials, backup/restore rehearsal, reviewed additive SQL and target-environment
+integration/rollback checks. Test migration commands must name
+backend/prisma.test.config.cjs and use securely supplied TEST_DATABASE_URL plus
+ALLOW_TEST_DATABASE_WRITES. Do not reset databases or rewrite applied migrations.
+A separate connection identity check is not proof of a later Prisma process's target.
 
 The transaction substitute serializes callbacks and snapshots in-memory rows.
 Its tests check service behavior and transaction boundaries, NOT PostgreSQL locks,
@@ -104,7 +117,7 @@ clock skew are not modeled. Do not describe these tests as full security proof.
 Session deployment/rehearsal and refresh coordination; request/attempt limits; safe concurrent resends and failed
 creation handling; protection of low-entropy OTP codes at rest; real SMS; HTTPS;
 authz/dashboard APIs; log redaction beyond this new path; cleanup of expired proof
-rows; database integration/rollback checks; deployment/backup/restore rehearsal.
+rows; target-environment integration/rollback checks; deployment/backup/restore rehearsal.
 No frontend or production configuration was changed by this batch.
 
 ## Design references

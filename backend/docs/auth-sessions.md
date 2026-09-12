@@ -7,14 +7,20 @@ No changes to frontend, SMS delivery, OTP request limits or production deploymen
 Session safety does not make the full system production-ready. In particular OTP
 attempt/resend limits and OTP storage hardening remain release prerequisites.
 
-New additive migration: `20260912120000_add_auth_sessions` creates AuthSession and
+The additive migration `20260912120000_add_auth_sessions` creates AuthSession and
 RefreshToken, foreign keys and indexes. The User relation is Prisma metadata only.
-Never reset an existing database to apply this feature. Rehearse migrations and
-checks on customer_club_test_db first; the normal development database still also
-needs the earlier PhoneVerification migration after backup/review.
+At the recorded local checkpoint on 2026-09-12, BOTH customer_club_db and
+customer_club_test_db had all four migrations applied. The verification/session
+migrations had accidentally targeted the normal local development database;
+this was not undone. The test database's missing session migration was then
+applied deliberately using the explicit test configuration. No production-server
+migration was performed. See the [incident and verification record](registration-db-checks.md)
+for the inspection limits, completed checks and corrected future procedure.
+Do not repeat migrations or reset either database for this documentation/test update.
 
-Install pinned `jsonwebtoken@9.0.3` with npm; let npm update package-lock.json.
-Do not hand-edit its lock entries. Keep Prisma 7.10 and the scoped overrides.
+The recorded local setup already installed pinned `jsonwebtoken@9.0.3` using npm
+and updated package-lock.json. No reinstall is required for this follow-up.
+Do not hand-edit lock entries. Keep Prisma 7.10 and the scoped overrides.
 
 ## Contract
 
@@ -105,6 +111,8 @@ secret management; rotation planning and rate limits are release work, not defau
 Configuration is checked before session work, and errors produce a generic 503.
 /health and OTP input validation can still run without session configuration.
 A missing signing key is never replaced by an insecure default or generated on boot.
+The ordinary development server's session configuration has not been confirmed.
+The database checkers' ephemeral credentials do not configure that server.
 
 ## Verification
 
@@ -118,9 +126,22 @@ and validates the actual database and non-admin test login before seeding fixtur
 It runs 12 checks, including forced overlapping reads in independent transactions.
 Cleanup is scoped to newly allocated test phones, with FK-cascaded session/token
 cleanup verified. No resets, truncation, automatic migration or .env writes occur.
-Run the existing registration DB checker too; it now expects automatic login and
-supplies process-local ephemeral session credentials. Keep used refresh hashes until
-the session expires/revokes; deleting them early defeats replay detection.
+The registration DB checker also expects automatic login and supplies process-local
+ephemeral session credentials. Keep used refresh hashes until the session expires
+or is revoked; deleting them early defeats replay detection.
+
+Completed local results, reported in the 2026-09-12 handoff: 244 npm tests passed
+with no failures or skips; separately, 12 session DB checks and 10 registration
+DB checks passed against customer_club_test_db / customer_club_test_user. Both
+checkers reported verified cleanup. These results predate the new offline tests;
+they are not fresh execution in this documentation follow-up or production approval.
+
+`backend/tests/migration-target-isolation.test.js` adds 59 offline regression tests
+for target validation, identity validation, explicit config selection and both
+checkers' environment-loading guards. It reads reviewed source files into isolated
+test contexts; it does not run Prisma CLI, load dotenv, connect to PostgreSQL or
+run either checker's integration body. See [the test scope](registration-db-checks.md#offline-migration-target-regressions).
+No repeat of the completed database checkers is requested for this follow-up.
 
 References used in design (not a claim of full OAuth protocol implementation):
 - https://github.com/auth0/node-jsonwebtoken
