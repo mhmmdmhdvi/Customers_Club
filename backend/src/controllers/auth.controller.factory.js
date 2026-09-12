@@ -1,5 +1,4 @@
 const { isValidIranianPhone, normalizePhone } = require("../utils/phone");
-const { RegistrationError } = require("../utils/registration-error");
 
 function createAuthController({ otpService, registrationService }) {
   async function requestCode(req, res) {
@@ -101,27 +100,7 @@ function createAuthController({ otpService, registrationService }) {
     }
   }
 
-  async function register(req, res) {
-    res.set("Cache-Control", "no-store");
-    try {
-      const user = await registrationService.register(req.body);
-      return res.status(201).json({
-        message: "Registration completed",
-        user,
-        authenticated: false,
-        nextStep: "LOGIN",
-      });
-    } catch (error) {
-      if (error instanceof RegistrationError) {
-        return res.status(error.statusCode).json({ message: error.message });
-      }
-      // Never print the request, proof token, or raw database exception.
-      console.error("Failed to register member");
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  }
-
-  return { requestCode, verifyCode, register };
+  return { requestCode, verifyCode };
 }
 
 module.exports = { createAuthController };

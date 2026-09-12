@@ -70,10 +70,10 @@ function createRegistrationService(prisma) {
     });
   }
 
-  async function register(input) {
+  async function register(input, transaction = null) {
     const { tokenHash, firstName, lastName } = parseRegistration(input);
     try {
-      return await prisma.$transaction(async (tx) => {
+      const createMember = async (tx) => {
         const proof = await tx.phoneVerification.findUnique({ where: { tokenHash } });
         if (!proof || proof.purpose !== "REGISTER" || proof.usedAt !== null || proof.expiresAt <= new Date()) {
           throw new RegistrationError(INVALID_PROOF);
@@ -92,7 +92,10 @@ function createRegistrationService(prisma) {
           data: { phone: proof.phone, firstName, lastName, role: "MEMBER" },
           select: USER_FIELDS,
         });
-      });
+      };
+      // Session orchestration supplies its existing transaction so account,
+      // proof consumption and session issuance commit or roll back together.
+      return await (transaction ? createMember(transaction) : prisma.$transaction(createMember));
     } catch (error) {
       // Unique User.phone also guards separate proofs racing to register one phone.
       if (error?.code === "P2002") throw new RegistrationError("Phone already registered", 409);

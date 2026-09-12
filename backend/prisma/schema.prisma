@@ -15,6 +15,8 @@ model User {
 
   role Role @default(MEMBER)
 
+  authSessions AuthSession[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -50,4 +52,30 @@ model PhoneVerification {
 
   @@index([phone])
   @@index([expiresAt])
+}
+
+// Refresh rotation history is retained while its session is live for replay detection.
+model AuthSession {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  version       Int            @default(0)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        Int         @id @default(autoincrement())
+  tokenHash String      @unique @db.VarChar(64)
+  sessionId String      @db.Uuid
+  session   AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  usedAt    DateTime?
+
+  @@index([sessionId])
 }
