@@ -48,11 +48,13 @@ POST /auth/register
 
 Successful response (201) includes `message: Registration completed`, `user`
 (id, phone, firstName, lastName, role, createdAt, updatedAt),
-`authenticated: false`, and `nextStep: LOGIN`.
-
-There is deliberately no access/refresh token, authenticated cookie, protected
-profile, or login-proof consumption endpoint in this batch. LOGIN proofs reserve
-that handoff for the later session implementation; do not treat them as sessions.
+`authenticated: true`, `tokenType: Bearer`, `accessToken`, `expiresIn` and
+`accessExpiresAt`. The refresh credential is set as an HttpOnly cookie, not JSON.
+The HTTP registration route now composes proof consumption, member creation and
+session issuance in one transaction. It also requires JSON, an approved Origin
+when supplied, and `X-CSRF-Protection: 1`. See [auth-sessions.md](auth-sessions.md)
+for configuration, refresh, logout, current-user access and token handling.
+LOGIN proofs are exchanged at `/auth/login`; a proof alone is not a session.
 Existing clients expecting exactly `{message: OTP verified}` must accept the new
 response fields when integrated. Error messages for current OTP validation remain.
 
@@ -77,7 +79,7 @@ Initial local check from the repository root:
 ```powershell
 npm --prefix backend test
 ```
-Expected full-suite count, given unchanged main at 4216a4c: 86 tests.
+The registration foundation originally had 86 tests. The session batch adds further coverage; consult its verification report for the current expected total.
 The existing generated client must already be present, as for the current tests.
 The new tests use a fake DB, so this first check needs no migration.
 
@@ -99,7 +101,7 @@ clock skew are not modeled. Do not describe these tests as full security proof.
 
 ## Still required before production
 
-JWT/session lifecycle; request/attempt limits; safe concurrent resends and failed
+Session deployment/rehearsal and refresh coordination; request/attempt limits; safe concurrent resends and failed
 creation handling; protection of low-entropy OTP codes at rest; real SMS; HTTPS;
 authz/dashboard APIs; log redaction beyond this new path; cleanup of expired proof
 rows; database integration/rollback checks; deployment/backup/restore rehearsal.

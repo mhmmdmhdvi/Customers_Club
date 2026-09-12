@@ -1,8 +1,8 @@
 # Opt-in PostgreSQL registration checks
 
-Prerequisites: the verified-phone registration patch, its three migrations applied
+Prerequisites: the verified-phone registration patch, its registration/session migrations applied
 ONLY to customer_club_test_db, and Prisma Client generated from that schema.
-Use the installed project packages; no new dependencies or migration are added.
+Requires the session migration and jsonwebtoken dependency. The checker itself never applies migrations.
 
 ## Deliberate scope
 
@@ -11,7 +11,7 @@ registration/OTP service factories through Prisma and PostgreSQL. It adds ten
 named checks:
 
 1. HTTP request-code -> verify-code -> register, normalized phone, hashed proof,
-   no-store headers, persisted MEMBER, and authenticated:false.
+   no-store headers, persisted MEMBER, authenticated access and an HttpOnly refresh cookie.
 2. Consumed proof replay rejection.
 3. Expired proof rejection without account creation or proof consumption.
 4. Existing-member LOGIN proof and wrong-purpose registration rejection.

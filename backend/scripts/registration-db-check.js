@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const path = require("node:path");
 
-class CheckFailure extends Error {}
+class CheckFailure extends Error { }
 
 function expect(condition, message) {
     if (!condition) throw new CheckFailure(message);
@@ -52,7 +52,12 @@ async function main() {
     // Set these only in this child process, before any application imports.
     process.env.DATABASE_URL = connectionString;
     process.env.NODE_ENV = "test";
-    process.env.DOTENV_CONFIG_OVERRIDE = "false";
+    // Ephemeral credentials for this check process only, never written to .env.
+    process.env.ACCESS_TOKEN_SECRET = crypto.randomBytes(32).toString("hex");
+    process.env.JWT_ISSUER = "registration-db-check";
+    process.env.JWT_AUDIENCE = "registration-db-check-client";
+    process.env.AUTH_ALLOWED_ORIGINS = "http://localhost:5173";
+    delete process.env.DOTENV_CONFIG_OVERRIDE;
     process.env.DOTENV_CONFIG_QUIET = "true";
     process.chdir(path.resolve(__dirname, ".."));
     require("../src/config/env");
@@ -91,7 +96,7 @@ async function main() {
         });
         // Suppress raw application errors and OTP logs in this isolated check process.
         console.error = () => originalConsoleError("Application error logged (details withheld)");
-        console.log = () => {};
+        console.log = () => { };
         const info = (message) => originalConsoleLog(message);
 
         async function check(name, action) {
@@ -125,10 +130,12 @@ async function main() {
         }
 
         async function seedOtp(phone) {
-            return prisma.oTPCode.create({ data: {
-                phone, code: crypto.randomInt(100_000, 1_000_000).toString(),
-                expiresAt: new Date(Date.now() + 120_000),
-            } });
+            return prisma.oTPCode.create({
+                data: {
+                    phone, code: crypto.randomInt(100_000, 1_000_000).toString(),
+                    expiresAt: new Date(Date.now() + 120_000),
+                }
+            });
         }
 
         async function issueProof(phone) {
@@ -138,7 +145,7 @@ async function main() {
         }
 
         function post(path, body) {
-            return request(app).post(path).send(body).timeout({ response: 5000, deadline: 10000 });
+            return request(app).post(path).set("X-CSRF-Protection", "1").send(body).timeout({ response: 5000, deadline: 10000 });
         }
 
         // Force both independent real transactions to read BEFORE either can update.
@@ -151,7 +158,7 @@ async function main() {
                 timer = setTimeout(() => reject(new CheckFailure("Concurrent-read barrier timed out")), 5000);
             });
             const rendezvous = Promise.race([gate, expired]);
-            rendezvous.catch(() => {});
+            rendezvous.catch(() => { });
             const synchronizedDb = {
                 $transaction: (callback) => prisma.$transaction(async (tx) => {
                     const scoped = { user: tx.user, oTPCode: tx.oTPCode, phoneVerification: tx.phoneVerification };
@@ -215,8 +222,9 @@ async function main() {
                 stored.tokenHash !== token && stored.usedAt === null, "Proof storage is incorrect");
             const registered = await post("/auth/register", details(token));
             expect(registered.status === 201 && registered.body.user?.role === "MEMBER" &&
-                registered.body.user.phone === phone && registered.body.authenticated === false &&
-                registered.body.nextStep === "LOGIN", "HTTP registration result is incorrect");
+                registered.body.user.phone === phone && registered.body.authenticated === true &&
+                typeof registered.body.accessToken === "string" && registered.body.refreshToken === undefined &&
+                Array.isArray(registered.headers["set-cookie"]), "HTTP registration result is incorrect");
             expect(registered.headers["cache-control"] === "no-store", "Registration response must not be cached");
             const member = await prisma.user.findUnique({ where: { phone } });
             expect(member && member.firstName === "Integration" && member.lastName === "Member" &&
