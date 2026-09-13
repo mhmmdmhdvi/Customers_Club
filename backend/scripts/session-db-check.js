@@ -11,6 +11,7 @@ async function main() {
   const url = parseTarget(process.env.TEST_DATABASE_URL, process.env.ALLOW_TEST_DATABASE_WRITES);
   process.env.DATABASE_URL = url;
   process.env.NODE_ENV = "test";
+  process.env.OTP_HMAC_SECRET = crypto.randomBytes(32).toString("hex");
   delete process.env.DOTENV_CONFIG_OVERRIDE;
   process.env.DOTENV_CONFIG_QUIET = "true";
   process.env.ACCESS_TOKEN_SECRET = crypto.randomBytes(32).toString("hex");
@@ -23,6 +24,7 @@ async function main() {
   const prisma = require("../src/config/database");
   let verified = false, passed = 0, complete = false;
   const phones = new Set();
+  let otpFixtures;
   const sessionIds = new Set();
   const originalError = console.error;
   try {
@@ -33,8 +35,10 @@ async function main() {
       FROM pg_roles WHERE rolname = current_user`;
     verifyIdentity(identity);
     verified = true;
-    expect(Boolean(prisma.authSession && prisma.refreshToken), "Regenerate Prisma Client from the session schema");
+    expect(Boolean(prisma.authSession && prisma.refreshToken && prisma.otpRateBucket), "Regenerate Prisma Client from the session schema");
     await prisma.authSession.count(); await prisma.refreshToken.count();
+    await prisma.otpRateBucket.count();
+    otpFixtures = require("./otp-check-fixtures").createCheckFixtures(prisma);
     console.log("Verified test target: customer_club_test_db / customer_club_test_user");
     console.error = () => originalError("Application error details withheld during database checks");
     const app = require("../src/app");
@@ -45,7 +49,7 @@ async function main() {
     const { readAuthConfig } = require("../src/config/auth");
     const tokens = createAccessTokens(readAuthConfig());
     const service = createSessionService(prisma, { tokens });
-    const registration = createRegistrationService(prisma);
+    const registration = otpFixtures.registration(prisma);
     const details = (verificationToken) => ({ verificationToken, firstName: "Integration", lastName: "Session" });
     const cookie = (response) => response.headers["set-cookie"][0].split(";")[0];
     const post = (route, body, credential) => {
@@ -68,9 +72,9 @@ async function main() {
         if (n.some(Boolean)) continue;
         phones.add(phone);
         if (existing) await prisma.user.create({ data: { phone, firstName: "Existing", lastName: "Member", role: "MEMBER" } });
-        const code = crypto.randomInt(100000, 1000000).toString();
-        await prisma.oTPCode.create({ data: { phone, code, expiresAt: new Date(Date.now() + 120000) } });
-        const result = await registration.verifyPhone(phone, code);
+        const fixture = otpFixtures.record(phone);
+        await prisma.oTPCode.create({ data: fixture.data });
+        const result = await registration.verifyPhone(phone, fixture.code);
         return { phone, verificationToken: result.verificationToken };
       }
       throw new CheckFailure("Could not reserve an unused test phone");
@@ -163,17 +167,21 @@ async function main() {
     }
     complete = true;
   } finally {
+    otpFixtures?.restoreSender();
     console.error = originalError;
     try {
       if (verified && phones.size) {
         const where = { phone: { in: [...phones] } };
+        const otpKeys = otpFixtures?.keysFor(phones) || [];
         const sessions = await prisma.authSession.findMany({ where: { user: { phone: { in: [...phones] } } }, select: { id: true } });
         sessions.forEach((s) => sessionIds.add(s.id));
         await prisma.$transaction([
+          prisma.otpRateBucket.deleteMany({ where: { key: { in: otpKeys } } }),
           prisma.phoneVerification.deleteMany({ where }), prisma.oTPCode.deleteMany({ where }), prisma.user.deleteMany({ where }),
         ]); // Foreign-key cascades remove ONLY those users' session/refresh rows.
         const remaining = await Promise.all([prisma.user.count({ where }), prisma.phoneVerification.count({ where }), prisma.oTPCode.count({ where }),
-        prisma.authSession.count({ where: { id: { in: [...sessionIds] } } }), prisma.refreshToken.count({ where: { sessionId: { in: [...sessionIds] } } })]);
+        prisma.authSession.count({ where: { id: { in: [...sessionIds] } } }), prisma.refreshToken.count({ where: { sessionId: { in: [...sessionIds] } } }),
+        prisma.otpRateBucket.count({ where: { key: { in: otpKeys } } })]);
         expect(remaining.every((n) => n === 0), "Temporary records remain after cleanup");
         console.log("Cleanup verified: this run's temporary records were removed.");
       }

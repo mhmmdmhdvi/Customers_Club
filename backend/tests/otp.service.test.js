@@ -1,248 +1,71 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createOtpService } = require("../src/services/otp.service.factory");
-
-const PHONE = "09121234567";
-const CODE = "123456";
-
-test("verifyOtp rejects a missing OTP", async () => {
-    const service = createOtpService({
-        oTPCode: {
-            findFirst: async () => null,
-            updateMany: async () => assert.fail("A missing OTP must not be updated"),
-        },
-    });
-
-    await assert.rejects(service.verifyOtp(PHONE, CODE), {
-        message: "Invalid OTP",
-    });
-});
-
-test("verifyOtp rejects an expired OTP", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: 1_000 });
-
-    const service = createOtpService({
-        oTPCode: {
-            findFirst: async () => ({
-                id: "otp-1",
-                expiresAt: new Date(999),
-                used: false,
-            }),
-            updateMany: async () => assert.fail("An expired OTP must not be updated"),
-        },
-    });
-
-    await assert.rejects(service.verifyOtp(PHONE, CODE), {
-        message: "OTP expired",
-    });
-});
-
-test("verifyOtp marks a valid OTP as used", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: 1_000 });
-    const otp = { id: "otp-1", expiresAt: new Date(2_000), used: false };
-
-    const service = createOtpService({
-        oTPCode: {
-            findFirst: async () => ({ ...otp }),
-            updateMany: async ({ where, data }) => {
-                const matches = Object.entries(where).every(([field, value]) =>
-                    field === "expiresAt"
-                        ? otp.expiresAt > value.gt
-                        : otp[field] === value
-                );
-
-                if (!matches) {
-                    return { count: 0 };
-                }
-
-                Object.assign(otp, data);
-                return { count: 1 };
-            },
-        },
-    });
-
-    const result = await service.verifyOtp(PHONE, CODE);
-
-    assert.equal(result, true);
-    assert.equal(otp.used, true);
-});
-
-function createVerificationFixture(t, used = false) {
-    t.mock.timers.enable({ apis: ["Date"], now: 1_000 });
-
-    const otp = {
-        id: "otp-1",
-        phone: PHONE,
-        code: CODE,
-        expiresAt: new Date(2_000),
-        used,
-    };
-
-    const service = createOtpService({
-        oTPCode: {
-            findFirst: async ({ where }) => {
-                const matches = Object.entries(where).every(
-                    ([field, value]) => otp[field] === value
-                );
-
-                return matches ? { ...otp } : null;
-            },
-            updateMany: async ({ where, data }) => {
-                const matches = Object.entries(where).every(([field, value]) =>
-                    field === "expiresAt"
-                        ? otp.expiresAt > value.gt
-                        : otp[field] === value
-                );
-
-                if (!matches) {
-                    return { count: 0 };
-                }
-
-                Object.assign(otp, data);
-                return { count: 1 };
-            },
-        },
-    });
-
-    return { service, otp };
+const { createOtpDb } = require("./helpers/otp-db");
+const { activeOtp, testConfig } = require("./helpers/otp-fixtures");
+const PHONE="09121234567", CODE="123456", IP="192.0.2.1";
+function fixture(t, rows) {
+  t.mock.timers.enable({apis:["Date"],now:1_000});
+  const config=testConfig(), sent=[];
+  const otps=rows === undefined ? [activeOtp(config,PHONE,CODE,{expiresAt:new Date(2_000)})] : rows;
+  const db=createOtpDb({otps});
+  const service=createOtpService(db.prisma,{getConfig:()=>config,sendOtp:async(data)=>sent.push(data)});
+  return {db,sent,config,service};
 }
-
-const rejectedAttempts = [
-    ["another phone number", "09129876543", CODE, false],
-    ["an incorrect code", PHONE, "654321", false],
-    ["an already-used OTP", PHONE, CODE, true],
-];
-
-for (const [reason, phone, code, used] of rejectedAttempts) {
-    test(`verifyOtp rejects ${reason}`, async (t) => {
-        const { service, otp } = createVerificationFixture(t, used);
-
-        await assert.rejects(service.verifyOtp(phone, code), {
-            message: "Invalid OTP",
-        });
-
-        assert.equal(otp.used, used);
-    });
+test("verifyOtp rejects a missing OTP",async(t)=>{
+  const f=fixture(t,[]);await assert.rejects(f.service.verifyOtp(PHONE,CODE,IP),{message:"Invalid OTP"});
+  assert.equal(f.db.state.otps.length,0);
+});
+test("verifyOtp rejects an expired OTP",async(t)=>{
+  const f=fixture(t);t.mock.timers.setTime(2_001);
+  await assert.rejects(f.service.verifyOtp(PHONE,CODE,IP),{message:"OTP expired"});assert.equal(f.db.state.otps[0].used,false);
+});
+test("verifyOtp marks a valid OTP as used",async(t)=>{
+  const f=fixture(t);assert.equal(await f.service.verifyOtp(PHONE,CODE,IP),true);assert.equal(f.db.state.otps[0].used,true);
+});
+for (const [label,phone,code,used] of [["another phone","09129876543",CODE,false],["incorrect code",PHONE,"654321",false],["used OTP",PHONE,CODE,true]]) {
+  test(`verifyOtp rejects ${label}`,async(t)=>{
+    const f=fixture(t);f.db.state.otps[0].used=used;
+    await assert.rejects(f.service.verifyOtp(phone,code,IP),{message:"Invalid OTP"});assert.equal(f.db.state.otps[0].used,used);
+  });
 }
-
-test("verifyOtp rejects reuse after a successful verification", async (t) => {
-    const { service, otp } = createVerificationFixture(t);
-
-    assert.equal(await service.verifyOtp(PHONE, CODE), true);
-    assert.equal(otp.used, true);
-
-    await assert.rejects(service.verifyOtp(PHONE, CODE), {
-        message: "Invalid OTP",
-    });
+test("verifyOtp rejects reuse after successful consumption",async(t)=>{
+  const f=fixture(t);await f.service.verifyOtp(PHONE,CODE,IP);
+  await assert.rejects(f.service.verifyOtp(PHONE,CODE,IP),{message:"Invalid OTP"});
 });
-
-function createCreationFixture(t, initialRecords = []) {
-    t.mock.timers.enable({ apis: ["Date"], now: 1_000 });
-    t.mock.method(console, "log", () => { });
-
-    const records = initialRecords.map((record) => ({ ...record }));
-
-    const service = createOtpService({
-        oTPCode: {
-            updateMany: async ({ where, data }) => {
-                const matches = records.filter((record) =>
-                    Object.entries(where).every(
-                        ([field, value]) => record[field] === value
-                    )
-                );
-
-                for (const record of matches) {
-                    Object.assign(record, data);
-                }
-
-                return { count: matches.length };
-            },
-            create: async ({ data }) => {
-                const record = {
-                    id: records.length + 1,
-                    used: false,
-                    ...data,
-                };
-
-                records.push(record);
-                return { ...record };
-            },
-        },
-    });
-
-    return { service, records };
+test("createOtp delivers a six-digit code and stores only its digest",async(t)=>{
+  const f=fixture(t,[]);await f.service.createOtp(PHONE,IP);
+  assert.equal(f.sent.length,1);assert.match(f.sent[0].code,/^\d{6}$/);
+  assert.equal(f.db.state.otps[0].phone,PHONE);assert.equal(f.db.state.otps[0].code,null);
+  assert.match(f.db.state.otps[0].codeHash,/^[a-f0-9]{64}$/);
+});
+test("createOtp lifetime is two minutes from the reservation time",async(t)=>{
+  const f=fixture(t,[]);await f.service.createOtp(PHONE,IP);assert.equal(f.db.state.otps[0].expiresAt.getTime(),121_000);
+});
+test("successful creation invalidates previous OTPs only for the same phone",async(t)=>{
+  const f=fixture(t);
+  f.db.state.otps.push(activeOtp(f.config,PHONE,CODE,{id:2}),activeOtp(f.config,"09129876543",CODE,{id:3}));
+  await f.service.createOtp(PHONE,IP);
+  assert.deepEqual(f.db.state.otps.map(r=>r.used),[true,true,false,false]);
+});
+for(const [time,allowed] of [[1_999,true],[2_000,false]]) {
+  test(`expiry boundary ${time}: ${allowed}`,async(t)=>{
+    const f=fixture(t);t.mock.timers.setTime(time);
+    if(allowed) assert.equal(await f.service.verifyOtp(PHONE,CODE,IP),true);
+    else {await assert.rejects(f.service.verifyOtp(PHONE,CODE,IP),{message:"OTP expired"});assert.equal(f.db.state.otps[0].used,false);}
+  });
 }
-
-test("createOtp saves one six-digit code for the requested phone", async (t) => {
-    const { service, records } = createCreationFixture(t);
-
-    await service.createOtp(PHONE);
-
-    assert.equal(records.length, 1);
-    assert.equal(records[0].phone, PHONE);
-    assert.match(records[0].code, /^\d{6}$/);
+test("at most one overlapping verification succeeds",async(t)=>{
+  const f=fixture(t);const results=await Promise.allSettled([f.service.verifyOtp(PHONE,CODE,IP),f.service.verifyOtp(PHONE,CODE,IP)]);
+  assert.equal(results.filter(r=>r.status==="fulfilled").length,1);
+  assert.equal(results.find(r=>r.status==="rejected").reason.message,"Invalid OTP");
 });
-
-test("createOtp sets expiration to exactly two minutes from now", async (t) => {
-    const { service, records } = createCreationFixture(t);
-
-    await service.createOtp(PHONE);
-
-    assert.equal(records[0].expiresAt.getTime(), 121_000);
+test("conditional consumption miss cannot call the proof callback",async(t)=>{
+  const f=fixture(t);f.db.failures.otpsClaimMiss=true;
+  await assert.rejects(f.service.verifyOtp(PHONE,CODE,IP,()=>assert.fail("must not mint proof")),{message:"Invalid OTP"});
 });
-
-test("createOtp invalidates previous OTPs only for the requested phone", async (t) => {
-    const { service, records } = createCreationFixture(t, [
-        { id: 1, phone: PHONE, used: false },
-        { id: 2, phone: PHONE, used: false },
-        { id: 3, phone: "09129876543", used: false },
-    ]);
-
-    await service.createOtp(PHONE);
-
-    assert.equal(records.length, 4);
-    assert.deepEqual(
-        records.map((record) => record.used),
-        [true, true, false, false]
-    );
-});
-
-test("verifyOtp accepts an OTP one millisecond before expiration", async (t) => {
-    const { service, otp } = createVerificationFixture(t);
-
-    t.mock.timers.setTime(otp.expiresAt.getTime() - 1);
-
-    assert.equal(await service.verifyOtp(PHONE, CODE), true);
-    assert.equal(otp.used, true);
-});
-
-test("verifyOtp rejects an OTP at its exact expiration time", async (t) => {
-    const { service, otp } = createVerificationFixture(t);
-
-    t.mock.timers.setTime(otp.expiresAt.getTime());
-
-    await assert.rejects(service.verifyOtp(PHONE, CODE), {
-        message: "OTP expired",
-    });
-
-    assert.equal(otp.used, false);
-});
-
-test("verifyOtp allows only one of two overlapping attempts to succeed", async (t) => {
-    const { service, otp } = createVerificationFixture(t);
-
-    // Start both attempts without waiting for the first to finish.
-    const results = await Promise.allSettled([
-        service.verifyOtp(PHONE, CODE),
-        service.verifyOtp(PHONE, CODE),
-    ]);
-
-    const succeeded = results.filter((result) => result.status === "fulfilled");
-    const rejected = results.filter((result) => result.status === "rejected");
-
-    assert.equal(succeeded.length, 1, "Only one verification may succeed");
-    assert.equal(rejected.length, 1);
-    assert.equal(succeeded[0].value, true);
-    assert.equal(rejected[0].reason.message, "Invalid OTP");
-    assert.equal(otp.used, true);
-});
+for(const [phone,code] of [[null,CODE],["08121234567",CODE],[PHONE,123456],[PHONE,"short"]]) {
+  test(`invalid OTP input ${JSON.stringify([phone,code])} avoids DB access`,async(t)=>{
+    const f=fixture(t);await assert.rejects(f.service.verifyOtp(phone,code,IP),{statusCode:400});assert.equal(f.db.transactions,0);
+  });
+}

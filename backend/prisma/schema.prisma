@@ -29,10 +29,24 @@ enum Role {
 model OTPCode {
   id        Int      @id @default(autoincrement())
   phone     String
-  code      String
+  code      String?
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+  codeHash String? @db.VarChar(64)
+  nonce String? @db.VarChar(64)
+  failedAttempts Int @default(0)
+  deliveryState String? @db.VarChar(12)
+
+  @@index([phone, used, deliveryState, id])
+}
+
+model OtpRateBucket {
+  key String @id @db.VarChar(64)
+  events DateTime[] @default([])
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 // A verification proof is not an authenticated member session.
