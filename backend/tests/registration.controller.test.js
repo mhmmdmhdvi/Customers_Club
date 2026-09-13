@@ -35,7 +35,7 @@ test("verify-code returns proof, normalizes phone, and disables caching", async 
     assert.equal(phone, "09121234567"); assert.equal(code, "123456"); return proof;
   } });
   const res = response();
-  await api.verifyCode({ body: { phone: "+989121234567", code: " 123456 " } }, res);
+  await api.verifyCode({ ip: "192.0.2.1", body: { phone: "+989121234567", code: " 123456 " } }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { message: "OTP verified", ...proof });
   assert.equal(res.headers["Cache-Control"], "no-store");
@@ -44,7 +44,7 @@ test("verify-code returns proof, normalizes phone, and disables caching", async 
 test("verify-code keeps the invalid OTP error contract", async () => {
   const api = controller({ verifyPhone: async () => { throw new Error("Invalid OTP"); } });
   const res = response();
-  await api.verifyCode({ body: { phone: "09121234567", code: "123456" } }, res);
+  await api.verifyCode({ ip: "192.0.2.1", body: { phone: "09121234567", code: "123456" } }, res);
   assert.equal(res.statusCode, 400);
   assert.deepEqual(res.body, { message: "Invalid OTP" });
 });
@@ -90,10 +90,10 @@ test("register does not leak unexpected database errors or tokens", async (t) =>
 test("verified-phone controller-to-service flow creates one member with a fake transaction store", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
   const db = createSessionDb({ otps: [{ id: 1, phone: "09121234567", code: "123456", used: false, expiresAt: new Date(1_120_000) }] });
-  const api = controller(createRegistrationService(db.prisma),
+  const api = controller(createRegistrationService(db.prisma, { otpOptions: { getConfig: () => db.otpConfig } }),
     createSessionService(db.prisma, { tokens: { issue: () => access() } }));
   const verified = response();
-  await api.verifyCode({ body: { phone: "+989121234567", code: "123456" } }, verified);
+  await api.verifyCode({ ip: "192.0.2.1", body: { phone: "+989121234567", code: "123456" } }, verified);
   assert.equal(verified.statusCode, 200);
   assert.equal(verified.body.nextStep, "REGISTER");
   const payload = { verificationToken: verified.body.verificationToken, firstName: "خسرو", lastName: "وفایی" };

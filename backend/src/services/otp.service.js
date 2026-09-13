@@ -1,5 +1,5 @@
-const { nodeEnv } = require("../config/env");
+require("../config/env");
 const prisma = require("../config/database");
 const { createOtpService } = require("./otp.service.factory");
-
-module.exports = createOtpService(prisma, { nodeEnv });
+const delivery = require("./otp-delivery");
+module.exports = createOtpService(prisma, { getSender: () => delivery.getSender() });

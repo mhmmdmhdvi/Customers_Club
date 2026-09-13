@@ -52,6 +52,7 @@ async function main() {
     // Set these only in this child process, before any application imports.
     process.env.DATABASE_URL = connectionString;
     process.env.NODE_ENV = "test";
+    process.env.OTP_HMAC_SECRET = crypto.randomBytes(32).toString("hex");
     // Ephemeral credentials for this check process only, never written to .env.
     process.env.ACCESS_TOKEN_SECRET = crypto.randomBytes(32).toString("hex");
     process.env.JWT_ISSUER = "registration-db-check";
@@ -66,6 +67,7 @@ async function main() {
 
     const prisma = require("../src/config/database");
     const phones = new Set();
+    let otpFixtures;
     let identityVerified = false;
     let passed = 0;
     let failed = 0;
@@ -83,13 +85,15 @@ async function main() {
         verifyIdentity(identity);
         identityVerified = true;
         console.log("Verified test target: customer_club_test_db / customer_club_test_user");
-        expect(Boolean(prisma.phoneVerification), "Regenerate Prisma Client before running this check");
-        await prisma.phoneVerification.count(); // Fail before seeding if the new table is absent.
+        expect(Boolean(prisma.phoneVerification && prisma.otpRateBucket), "Regenerate Prisma Client before running this check");
+        await prisma.phoneVerification.count(); // Fail before seeding if the table is absent.
+        await prisma.otpRateBucket.count();
+        otpFixtures = require("./otp-check-fixtures").createCheckFixtures(prisma);
 
         const request = require("supertest");
         const app = require("../src/app");
         const { createRegistrationService } = require("../src/services/registration.service.factory");
-        const service = createRegistrationService(prisma);
+        const service = otpFixtures.registration(prisma);
         const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
         const details = (verificationToken) => ({
             verificationToken, firstName: "Integration", lastName: "Member",
@@ -130,12 +134,9 @@ async function main() {
         }
 
         async function seedOtp(phone) {
-            return prisma.oTPCode.create({
-                data: {
-                    phone, code: crypto.randomInt(100_000, 1_000_000).toString(),
-                    expiresAt: new Date(Date.now() + 120_000),
-                }
-            });
+            const fixture = otpFixtures.record(phone);
+            const row = await prisma.oTPCode.create({ data: fixture.data });
+            return { ...row, code: fixture.code }; // Test memory only; stored code remains null.
         }
 
         async function issueProof(phone) {
@@ -149,7 +150,9 @@ async function main() {
         }
 
         // Force both independent real transactions to read BEFORE either can update.
-        async function overlap(model, method, action) {
+        async function overlap(model, method, action, phone) {
+            if (model === "oTPCode") return otpFixtures.overlapVerify(phone, action);
+            // Registration-only races below still rendezvous on their selected read.
             let readers = 0;
             let release;
             const gate = new Promise((resolve) => { release = resolve; });
@@ -194,11 +197,15 @@ async function main() {
         function failBeforeCommit() {
             const marker = new CheckFailure("Deliberate pre-commit failure");
             let reached = false;
-            const failingService = createRegistrationService({
+            const failingService = otpFixtures.registration({
                 $transaction: (callback) => prisma.$transaction(async (tx) => {
-                    await callback(tx); // Run all of the service's actual PostgreSQL writes.
-                    reached = true;
-                    throw marker;      // PostgreSQL must roll them back, not commit them.
+                    const result = await callback(tx);
+                    // Ignore the independently committed IP-budget transaction.
+                    if (result?.value?.verificationToken || result?.role) {
+                        reached = true;
+                        throw marker; // Roll back proof/OTP or account/proof writes.
+                    }
+                    return result;
                 }),
             });
             return { failingService, marker, reached: () => reached };
@@ -210,8 +217,8 @@ async function main() {
             const sent = await post("/auth/request-code", { phone: internationalPhone });
             expect(sent.status === 200 && sent.body.message === "Code sent", "OTP request failed");
             const otp = await prisma.oTPCode.findFirst({ where: { phone, used: false }, orderBy: { id: "desc" } });
-            expect(otp && /^\d{6}$/.test(otp.code), "OTP was not stored for the normalized phone");
-            const verified = await post("/auth/verify-code", { phone: internationalPhone, code: otp.code });
+            expect(otp && otp.code === null && /^[a-f0-9]{64}$/.test(otp.codeHash), "Digest OTP was not stored for the normalized phone");
+            const verified = await post("/auth/verify-code", { phone: internationalPhone, code: otpFixtures.codeFor(phone) });
             expect(verified.status === 200 && verified.body.nextStep === "REGISTER" &&
                 verified.body.authenticated === false, "Verification did not issue a registration proof");
             expect(verified.headers["cache-control"] === "no-store", "Verification response must not be cached");
@@ -281,7 +288,7 @@ async function main() {
         await check("Overlapping OTP verifications mint exactly one proof", async () => {
             const phone = await newPhone();
             const otp = await seedOtp(phone);
-            const result = await overlap("oTPCode", "findFirst", (s) => s.verifyPhone(phone, otp.code));
+            const result = await overlap("oTPCode", "findFirst", (s) => s.verifyPhone(phone, otp.code), phone);
             expect(result.error.message === "Invalid OTP", "Unexpected losing-verification error");
             expect(await prisma.phoneVerification.count({ where: { phone } }) === 1, "Duplicate proofs were stored");
             expect((await prisma.oTPCode.findUnique({ where: { id: otp.id } })).used === true, "OTP was not consumed");
@@ -336,13 +343,16 @@ async function main() {
 
         completed = true;
     } finally {
+        otpFixtures?.restoreSender();
         console.log = originalConsoleLog;
         console.error = originalConsoleError;
         try {
             if (identityVerified && phones.size > 0) {
                 const where = { phone: { in: [...phones] } };
+                const otpKeys = otpFixtures?.keysFor(phones) || [];
                 // Delete only rows for this run's newly allocated fixture phones.
                 await prisma.$transaction([
+                    prisma.otpRateBucket.deleteMany({ where: { key: { in: otpKeys } } }),
                     prisma.phoneVerification.deleteMany({ where }),
                     prisma.oTPCode.deleteMany({ where }),
                     prisma.user.deleteMany({ where }),
@@ -350,6 +360,7 @@ async function main() {
                 const remaining = await Promise.all([
                     prisma.phoneVerification.count({ where }), prisma.oTPCode.count({ where }),
                     prisma.user.count({ where }),
+                    prisma.otpRateBucket.count({ where: { key: { in: otpKeys } } }),
                 ]);
                 expect(remaining.every((count) => count === 0), "Some fixture records remain after cleanup");
                 console.log("Cleanup verified: this run's temporary records were removed.");

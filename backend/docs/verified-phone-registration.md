@@ -1,5 +1,12 @@
 # Verified-phone registration (review branch; not production-ready)
 
+> OTP behavior is now extended by [OTP release safeguards](otp-release-safeguards.md).
+> Historical migration/test counts below describe the prior session checkpoint.
+> The subsequent Windows test-only rehearsal and all 30 DB checks passed (user-reported).
+> See the current verification record in OTP release safeguards. Do not repeat migration five.
+> The normal development database was not migrated by that rehearsal.
+> Runtime SMS is not implemented; test checkers explicitly use fake delivery.
+
 ## What changed
 
 - `POST /auth/request-code` keeps the existing API behavior.

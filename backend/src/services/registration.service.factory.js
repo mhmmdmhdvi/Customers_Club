@@ -43,8 +43,9 @@ function parseRegistration(input) {
   };
 }
 
-function createRegistrationService(prisma) {
-  async function verifyPhone(rawPhone, rawCode) {
+function createRegistrationService(prisma, { otpOptions } = {}) {
+  const otpService = createOtpService(prisma, otpOptions);
+  async function verifyPhone(rawPhone, rawCode, clientIp) {
     const phone = normalizePhone(rawPhone);
     if (!isValidIranianPhone(phone)) throw new RegistrationError("Invalid phone number");
     if (typeof rawCode !== "string" || !/^\d{6}$/.test(rawCode.trim())) {
@@ -54,12 +55,12 @@ function createRegistrationService(prisma) {
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = hashToken(verificationToken);
 
-    return prisma.$transaction(async (tx) => {
-      // Consume the OTP and persist its proof together. A failed insert rolls back.
-      await createOtpService(tx).verifyOtp(phone, code);
+    return otpService.verifyOtp(phone, code, clientIp, async (tx, time) => {
+      // Proof insertion stays in the OTP-consumption transaction. Rejected guesses
+      // are committed by the OTP service without entering this success callback.
       const member = await tx.user.findUnique({ where: { phone }, select: { id: true } });
       const purpose = member ? "LOGIN" : "REGISTER";
-      const expiresAt = new Date(Date.now() + VERIFICATION_TTL_MS);
+      const expiresAt = new Date(time.getTime() + VERIFICATION_TTL_MS);
       await tx.phoneVerification.create({ data: { phone, tokenHash, purpose, expiresAt } });
       return {
         nextStep: purpose,

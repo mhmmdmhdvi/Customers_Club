@@ -1,7 +1,17 @@
 const { isValidIranianPhone, normalizePhone } = require("../utils/phone");
 
+const { OtpError } = require("../utils/otp-error");
+
+function otpFailure(res, error) {
+  if (!(error instanceof OtpError)) return false;
+  if (error.statusCode === 429) res.set("Retry-After", String(error.retryAfter));
+  res.status(error.statusCode).json({ message: error.message });
+  return true;
+}
+
 function createAuthController({ otpService, registrationService }) {
   async function requestCode(req, res) {
+    res.set("Cache-Control", "no-store");
     const rawPhone = req.body?.phone;
 
     if (!rawPhone) {
@@ -22,13 +32,15 @@ function createAuthController({ otpService, registrationService }) {
     }
 
     try {
-      await otpService.createOtp(phone);
+      await otpService.createOtp(phone, req.ip);
 
       return res.status(200).json({
         message: "Code sent",
       });
     } catch (error) {
-      console.error("Failed to create OTP:", error);
+      if (otpFailure(res, error)) return;
+      if (otpFailure(res, error)) return;
+      console.error("Failed to create OTP");
 
       return res.status(500).json({
         message: "Internal server error",
@@ -76,13 +88,14 @@ function createAuthController({ otpService, registrationService }) {
     }
 
     try {
-      const verification = await registrationService.verifyPhone(phone, code);
+      const verification = await registrationService.verifyPhone(phone, code, req.ip);
 
       return res.status(200).json({
         message: "OTP verified",
         ...verification,
       });
     } catch (error) {
+      if (otpFailure(res, error)) return;
       if (
         error.message === "Invalid OTP" ||
         error.message === "OTP expired"

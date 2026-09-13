@@ -15,7 +15,9 @@ function fixture(t, options = {}) {
     otps: [{ id: 1, phone: PHONE, code: CODE, used: false, expiresAt: new Date(NOW + 120_000) }],
     ...options,
   });
-  return { db, service: createRegistrationService(db.prisma) };
+  const service = createRegistrationService(db.prisma, { otpOptions: { getConfig: () => db.otpConfig } });
+  // Fixed synthetic peer; no real process environment or IP is used in these tests.
+  return { db, service: { ...service, verifyPhone: (phone, code) => service.verifyPhone(phone, code, "192.0.2.1") } };
 }
 const input = (verificationToken, extra = {}) => ({ verificationToken, firstName: " خسرو ", lastName: " وفایی ", ...extra });
 
