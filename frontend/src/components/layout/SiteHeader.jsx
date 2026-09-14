@@ -77,7 +77,7 @@ export function SiteHeader() {
                     ))}
 
                     <a
-                        href="#join"
+                        href="/login"
                         className="border border-border-strong px-5 py-2 text-sm font-semibold text-foreground transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-ink-foreground"
                     >
                         ورود
@@ -119,7 +119,7 @@ export function SiteHeader() {
                         ))}
 
                         <a
-                            href="#join"
+                            href="/login"
                             onClick={closeMenu}
                             className="my-4 bg-ink px-5 py-3 text-center text-sm font-semibold text-ink-foreground"
                         >

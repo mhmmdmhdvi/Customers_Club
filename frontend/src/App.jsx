@@ -7,9 +7,19 @@ import { FooterSection } from "./components/sections/FooterSection";
 import { HeroSection } from "./components/sections/HeroSection";
 import { MembershipSection } from "./components/sections/MembershipSection";
 import { useReveal } from "./hooks/useReveal";
+import { LoginPage } from "./pages/LoginPage";
 
 function App() {
   useReveal();
+
+  const isLoginPage =
+    window.location.pathname === "/login" ||
+    window.location.pathname === "/login/";
+
+  if (isLoginPage) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
