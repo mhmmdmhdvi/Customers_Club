@@ -93,7 +93,7 @@ describe("SiteHeader", () => {
             within(mobileNavigation).getByRole("link", {
                 name: "ورود",
             }),
-        ).toHaveAttribute("href", "#join");
+        ).toHaveAttribute("href", "/login");
     });
     it("shows an icon inside the mobile menu button", () => {
         render(<SiteHeader />);
@@ -115,7 +115,7 @@ describe("SiteHeader", () => {
             within(desktopNavigation).getByRole("link", {
                 name: "ورود",
             }),
-        ).toHaveAttribute("href", "#join");
+        ).toHaveAttribute("href", "/login");
     });
     it("adds the scrolled header treatment after the page moves", () => {
         Object.defineProperty(window, "scrollY", {
