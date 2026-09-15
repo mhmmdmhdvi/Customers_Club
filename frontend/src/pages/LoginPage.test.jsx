@@ -6,6 +6,44 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoginPage } from "./LoginPage";
+import { AuthProvider } from "../auth/AuthProvider";
+import { useAuth } from "../auth/AuthContext";
+
+const sharedSession = {
+    user: {
+        id: 7,
+        phone: "09123456789",
+        firstName: "سارا",
+        lastName: "احمدی",
+        role: "MEMBER",
+    },
+    accessToken: "test.access.token",
+    tokenType: "Bearer",
+    accessExpiresAt: new Date(
+        Date.now() + 15 * 60 * 1000,
+    ).toISOString(),
+};
+
+function SharedSessionSetter() {
+    const { establishSession } = useAuth();
+
+    return (
+        <button
+            type="button"
+            onClick={() => establishSession(sharedSession)}
+        >
+            Set shared session
+        </button>
+    );
+}
+
+function renderLoginPage() {
+    return render(
+        <AuthProvider>
+            <LoginPage />
+        </AuthProvider>,
+    );
+}
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -13,7 +51,7 @@ afterEach(() => {
 
 describe("LoginPage", () => {
     it("shows the login heading and phone-number field", () => {
-        render(<LoginPage />);
+        renderLoginPage();
         expect(
             screen.getByRole("heading", {
                 name: "ورود",
@@ -36,7 +74,7 @@ describe("LoginPage", () => {
                 }),
             }),
         );
-        render(<LoginPage />);
+        renderLoginPage();
         const phoneInput = screen.getByRole("textbox", {
             name: "شماره موبایل",
         });
@@ -58,6 +96,29 @@ describe("LoginPage", () => {
             ).toBeInTheDocument();
         });
     });
+});
+
+it("shows an already-established shared session", () => {
+    render(
+        <AuthProvider>
+            <SharedSessionSetter />
+            <LoginPage />
+        </AuthProvider>,
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "Set shared session",
+        }),
+    );
+
+    expect(
+        screen.getByRole("heading", {
+            name: "خوش آمدید",
+        }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("سارا احمدی")).toBeInTheDocument();
 });
 
 it("shows registration fields after verifying a new member's code", async () => {
@@ -91,7 +152,7 @@ it("shows registration fields after verifying a new member's code", async () => 
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     fireEvent.change(
         screen.getByRole("textbox", { name: "شماره موبایل" }),
@@ -190,7 +251,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     fireEvent.change(
         screen.getByRole("textbox", { name: "شماره موبایل" }),
@@ -319,7 +380,7 @@ it("logs in an existing member without showing registration fields", async () =>
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     // Enter the phone number and request a code.
     fireEvent.change(
@@ -454,7 +515,7 @@ it("logs out and returns to an empty phone-number form", async () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<LoginPage />);
+    renderLoginPage();
 
     // First, sign in through the existing flow.
     fireEvent.change(

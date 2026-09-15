@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import { useAuth } from "../auth/AuthContext";
 import loginImage from "../assets/images/hero-slab.jpg";
 
 const API_BASE_URL =
@@ -14,7 +14,7 @@ export function LoginPage() {
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
-    const [session, setSession] = useState(null);
+    const { session, establishSession, clearSession } = useAuth();
 
     async function handleRequestCode(event) {
         event.preventDefault();
@@ -126,7 +126,7 @@ export function LoginPage() {
                         data.verificationToken,
                     );
 
-                    setSession(nextSession);
+                    establishSession(nextSession);
                     setVerification(null);
                 } catch {
                     // Do not automatically repeat a single-use proof exchange.
@@ -238,7 +238,7 @@ export function LoginPage() {
                 return;
             }
 
-            setSession({
+            establishSession({
                 user: data.user,
                 accessToken: data.accessToken,
                 tokenType: data.tokenType,
@@ -326,7 +326,7 @@ export function LoginPage() {
 
             // Successful logout has no JSON response body.
             // Clear the session and reset the form.
-            setSession(null);
+            clearSession();
             setVerification(null);
             setPhone("");
             setCode("");
@@ -396,7 +396,7 @@ export function LoginPage() {
                             </h2>
                         </div>
 
-                        {step === "phone" ? (
+                        {step === "phone" && !session ? (
                             <form
                                 onSubmit={handleRequestCode}
                                 className="mt-8"
