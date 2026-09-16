@@ -16,6 +16,7 @@ const sharedSession = {
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     },
     accessToken: "test.access.token",
     tokenType: "Bearer",
@@ -319,6 +320,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
         firstName: "علی",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     const fetchMock = vi
@@ -445,6 +447,7 @@ it("logs in an existing member without showing registration fields", async () =>
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     const fetchMock = vi
@@ -569,6 +572,7 @@ it("logs out and returns to an empty phone-number form", async () => {
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     // A 204 response has no JSON body to read.

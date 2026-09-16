@@ -4,6 +4,7 @@ const REFRESH_LOCK_NAME = "club-auth-refresh";
 const REFRESH_BLOCKED_KEY = "club-auth-refresh-blocked";
 const REFRESH_STORAGE_PROBE_KEY =
     "club-auth-refresh-storage-probe";
+import { parseAuthenticatedSession } from "./sessionResponse";
 
 let refreshInFlight = null;
 
@@ -32,31 +33,11 @@ async function performRefresh() {
     }
 
     const data = await response.json();
-    const expiresAt = Date.parse(data?.accessExpiresAt);
-
-    if (
-        data?.authenticated !== true ||
-        data?.tokenType !== "Bearer" ||
-        typeof data?.accessToken !== "string" ||
-        data.accessToken.length === 0 ||
-        !Number.isSafeInteger(data?.user?.id) ||
-        data.user.id <= 0 ||
-        typeof data.user.firstName !== "string" ||
-        typeof data.user.lastName !== "string" ||
-        !Number.isFinite(expiresAt) ||
-        expiresAt <= Date.now()
-    ) {
-        throw new Error("Invalid refresh response");
-    }
+    const session = parseAuthenticatedSession(data);
 
     return {
         kind: "authenticated",
-        session: {
-            user: data.user,
-            accessToken: data.accessToken,
-            tokenType: data.tokenType,
-            accessExpiresAt: data.accessExpiresAt,
-        },
+        session,
     };
 }
 
