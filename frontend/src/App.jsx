@@ -7,17 +7,48 @@ import { FooterSection } from "./components/sections/FooterSection";
 import { HeroSection } from "./components/sections/HeroSection";
 import { MembershipSection } from "./components/sections/MembershipSection";
 import { useReveal } from "./hooks/useReveal";
+import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { useState } from "react";
 
 function App() {
   useReveal();
 
+  const [pathname, setPathname] = useState(
+    () => window.location.pathname,
+  );
+
+  function navigate(path) {
+    window.history.replaceState({}, "", path);
+    setPathname(path);
+  }
+
   const isLoginPage =
-    window.location.pathname === "/login" ||
-    window.location.pathname === "/login/";
+    pathname === "/login" ||
+    pathname === "/login/";
+
+  const isDashboardPage =
+    pathname === "/dashboard" ||
+    pathname === "/dashboard/";
 
   if (isLoginPage) {
-    return <LoginPage />;
+    return (
+      <LoginPage
+        onAuthenticated={() =>
+          navigate("/dashboard")
+        }
+      />
+    );
+  }
+
+  if (isDashboardPage) {
+    return (
+      <DashboardPage
+        onRequireLogin={() =>
+          navigate("/login")
+        }
+      />
+    );
   }
 
   return (

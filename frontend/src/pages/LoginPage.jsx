@@ -6,7 +6,9 @@ import { parseAuthenticatedSession } from "../auth/sessionResponse";
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
-export function LoginPage() {
+export function LoginPage({
+    onAuthenticated = () => { },
+}) {
     const [step, setStep] = useState("phone");
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
@@ -134,6 +136,7 @@ export function LoginPage() {
 
                     establishSession(nextSession);
                     setVerification(null);
+                    onAuthenticated();
                 } catch {
                     // Do not automatically repeat a single-use proof exchange.
                     setVerification(null);
@@ -244,6 +247,7 @@ export function LoginPage() {
             setVerification(null);
             setFirstName("");
             setLastName("");
+            onAuthenticated();
         } catch {
             setError("نتیجه ثبت‌نام مشخص نیست. لطفاً دوباره وارد شوید.");
         } finally {
