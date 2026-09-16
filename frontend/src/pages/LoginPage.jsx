@@ -14,7 +14,12 @@ export function LoginPage() {
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
-    const { session, establishSession, clearSession } = useAuth();
+    const {
+        session,
+        authStatus,
+        establishSession,
+        clearSession,
+    } = useAuth();
 
     async function handleRequestCode(event) {
         event.preventDefault();
@@ -300,6 +305,47 @@ export function LoginPage() {
         };
     }
 
+    async function handleResetSession() {
+        if (isLoading) return;
+
+        setError("");
+        setIsLoading(true);
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/auth/logout`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Protection": "1",
+                    },
+                    body: JSON.stringify({}),
+                },
+            );
+
+            if (response.status !== 204) {
+                throw new Error("Session reset was not confirmed");
+            }
+
+            clearSession();
+
+            setVerification(null);
+            setPhone("");
+            setCode("");
+            setFirstName("");
+            setLastName("");
+            setStep("phone");
+        } catch {
+            setError(
+                "شروع دوباره ورود تأیید نشد. لطفاً دوباره تلاش کنید.",
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
     async function handleLogout() {
         if (isLoading || !session) return;
 
@@ -396,7 +442,45 @@ export function LoginPage() {
                             </h2>
                         </div>
 
-                        {step === "phone" && !session ? (
+                        {authStatus === "restoring" ? (
+                            <div
+                                role="status"
+                                className="mt-8 text-sm leading-7 text-muted-foreground"
+                            >
+                                در حال بررسی وضعیت ورود...
+                            </div>
+                        ) : authStatus === "error" ? (
+                            <div className="mt-8">
+                                <p
+                                    role="alert"
+                                    className="text-sm leading-7 text-red-600"
+                                >
+                                    بررسی وضعیت ورود انجام نشد.
+                                </p>
+
+                                <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                                    برای ورود دوباره، ابتدا نشست قبلی را با خیال راحت ببندید.
+                                </p>
+
+                                <button
+                                    type="button"
+                                    onClick={handleResetSession}
+                                    disabled={isLoading}
+                                    className="mt-6 rounded-full bg-primary px-10 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isLoading ? "در حال آماده‌سازی..." : "ورود دوباره"}
+                                </button>
+
+                                {error ? (
+                                    <p
+                                        role="alert"
+                                        className="mt-4 text-sm text-red-600"
+                                    >
+                                        {error}
+                                    </p>
+                                ) : null}
+                            </div>
+                        ) : step === "phone" && !session ? (
                             <form
                                 onSubmit={handleRequestCode}
                                 className="mt-8"

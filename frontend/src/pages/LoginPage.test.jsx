@@ -37,12 +37,47 @@ function SharedSessionSetter() {
     );
 }
 
-function renderLoginPage() {
-    return render(
+function renderWithUnauthenticatedRefresh(ui) {
+    const requestFetch = globalThis.fetch;
+
+    vi.stubGlobal(
+        "fetch",
+        vi.fn((url, options) => {
+            if (
+                typeof url === "string" &&
+                /\/auth\/refresh$/.test(url)
+            ) {
+                return Promise.resolve({
+                    ok: false,
+                    status: 401,
+                });
+            }
+
+            if (typeof requestFetch !== "function") {
+                throw new Error(
+                    `Unexpected fetch request: ${String(url)}`,
+                );
+            }
+
+            return requestFetch(url, options);
+        }),
+    );
+
+    return render(ui);
+}
+
+async function renderLoginPage() {
+    const result = renderWithUnauthenticatedRefresh(
         <AuthProvider>
             <LoginPage />
         </AuthProvider>,
     );
+
+    await screen.findByRole("textbox", {
+        name: "شماره موبایل",
+    });
+
+    return result;
 }
 
 afterEach(() => {
@@ -50,8 +85,8 @@ afterEach(() => {
 });
 
 describe("LoginPage", () => {
-    it("shows the login heading and phone-number field", () => {
-        renderLoginPage();
+    it("shows the login heading and phone-number field", async () => {
+        await renderLoginPage();
         expect(
             screen.getByRole("heading", {
                 name: "ورود",
@@ -74,7 +109,7 @@ describe("LoginPage", () => {
                 }),
             }),
         );
-        renderLoginPage();
+        await renderLoginPage();
         const phoneInput = screen.getByRole("textbox", {
             name: "شماره موبایل",
         });
@@ -99,7 +134,7 @@ describe("LoginPage", () => {
 });
 
 it("shows an already-established shared session", () => {
-    render(
+    renderWithUnauthenticatedRefresh(
         <AuthProvider>
             <SharedSessionSetter />
             <LoginPage />
@@ -119,6 +154,81 @@ it("shows an already-established shared session", () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText("سارا احمدی")).toBeInTheDocument();
+});
+
+it("waits for session restoration before showing the phone form", async () => {
+    let resolveRefresh;
+
+    const refreshPromise = new Promise((resolve) => {
+        resolveRefresh = resolve;
+    });
+
+    vi.stubGlobal(
+        "fetch",
+        vi.fn((url) => {
+            if (
+                typeof url === "string" &&
+                /\/auth\/refresh$/.test(url)
+            ) {
+                return refreshPromise;
+            }
+
+            throw new Error(
+                `Unexpected fetch request: ${String(url)}`,
+            );
+        }),
+    );
+
+    render(
+        <AuthProvider>
+            <LoginPage />
+        </AuthProvider>,
+    );
+
+    expect(
+        screen.queryByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).not.toBeInTheDocument();
+
+    resolveRefresh({
+        ok: false,
+        status: 401,
+    });
+
+    expect(
+        await screen.findByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).toBeInTheDocument();
+});
+
+it("does not show the login form when session restoration fails ambiguously", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+            ok: false,
+            status: 503,
+        }),
+    );
+
+    render(
+        <AuthProvider>
+            <LoginPage />
+        </AuthProvider>,
+    );
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "بررسی وضعیت ورود انجام نشد.",
+    );
+
+    expect(
+        screen.queryByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).not.toBeInTheDocument();
 });
 
 it("shows registration fields after verifying a new member's code", async () => {
@@ -152,7 +262,7 @@ it("shows registration fields after verifying a new member's code", async () => 
 
     vi.stubGlobal("fetch", fetchMock);
 
-    renderLoginPage();
+    await renderLoginPage();
 
     fireEvent.change(
         screen.getByRole("textbox", { name: "شماره موبایل" }),
@@ -251,7 +361,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    renderLoginPage();
+    await renderLoginPage();
 
     fireEvent.change(
         screen.getByRole("textbox", { name: "شماره موبایل" }),
@@ -380,7 +490,7 @@ it("logs in an existing member without showing registration fields", async () =>
 
     vi.stubGlobal("fetch", fetchMock);
 
-    renderLoginPage();
+    await renderLoginPage();
 
     // Enter the phone number and request a code.
     fireEvent.change(
@@ -515,7 +625,7 @@ it("logs out and returns to an empty phone-number form", async () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    renderLoginPage();
+    await renderLoginPage();
 
     // First, sign in through the existing flow.
     fireEvent.change(
@@ -581,4 +691,119 @@ it("logs out and returns to an empty phone-number form", async () => {
 
     expect(JSON.parse(options.body)).toEqual({});
     expect(logoutJson).not.toHaveBeenCalled();
+});
+
+it("resets the session before allowing sign-in again after a restoration error", async () => {
+    const logoutJson = vi.fn();
+
+    const fetchMock = vi
+        .fn()
+        // Initial restoration fails ambiguously.
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 503,
+        })
+        // Explicit recovery logout succeeds with no body.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 204,
+            json: logoutJson,
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+        <AuthProvider>
+            <LoginPage />
+        </AuthProvider>,
+    );
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "بررسی وضعیت ورود انجام نشد.",
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "ورود دوباره",
+        }),
+    );
+
+    expect(
+        await screen.findByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const [url, options] = fetchMock.mock.calls[1];
+
+    expect(url).toMatch(/\/auth\/logout$/);
+
+    expect(options).toEqual(
+        expect.objectContaining({
+            method: "POST",
+            credentials: "include",
+            headers: expect.objectContaining({
+                "Content-Type": "application/json",
+                "X-CSRF-Protection": "1",
+            }),
+        }),
+    );
+
+    expect(JSON.parse(options.body)).toEqual({});
+    expect(logoutJson).not.toHaveBeenCalled();
+});
+
+it("keeps the restoration error when session reset is not confirmed", async () => {
+    const fetchMock = vi
+        .fn()
+        // Initial restoration fails ambiguously.
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 503,
+        })
+        // Explicit recovery logout also fails.
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+        <AuthProvider>
+            <LoginPage />
+        </AuthProvider>,
+    );
+
+    expect(
+        await screen.findByText("بررسی وضعیت ورود انجام نشد."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "ورود دوباره",
+        }),
+    );
+
+    expect(
+        await screen.findByText(
+            "شروع دوباره ورود تأیید نشد. لطفاً دوباره تلاش کنید.",
+        ),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.queryByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).not.toBeInTheDocument();
+
+    expect(
+        localStorage.getItem("club-auth-refresh-blocked"),
+    ).toBe("1");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 });
