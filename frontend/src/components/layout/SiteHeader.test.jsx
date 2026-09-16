@@ -1,6 +1,24 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from "vitest";
+
+import { AuthContext } from "../../auth/AuthContext";
 import { SiteHeader } from "./SiteHeader";
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 describe("SiteHeader", () => {
     it("toggles the mobile navigation with one accessible button", () => {
@@ -58,7 +76,7 @@ describe("SiteHeader", () => {
         const eventsLink = within(mobileNavigation).getByRole("link", {
             name: "رویدادها",
         });
-        expect(eventsLink).toHaveAttribute("href", "#events");
+        expect(eventsLink).toHaveAttribute("href", "/#events");
         fireEvent.click(eventsLink);
         expect(
             screen.queryByRole("navigation", {
@@ -78,17 +96,17 @@ describe("SiteHeader", () => {
             within(mobileNavigation).getByRole("link", {
                 name: "رویدادها",
             }),
-        ).toHaveAttribute("href", "#events");
+        ).toHaveAttribute("href", "/#events");
         expect(
             within(mobileNavigation).getByRole("link", {
                 name: "درباره ما",
             }),
-        ).toHaveAttribute("href", "#about");
+        ).toHaveAttribute("href", "/#about");
         expect(
             within(mobileNavigation).getByRole("link", {
                 name: "تماس با ما",
             }),
-        ).toHaveAttribute("href", "#contact");
+        ).toHaveAttribute("href", "/#contact");
         expect(
             within(mobileNavigation).getByRole("link", {
                 name: "ورود",
@@ -132,5 +150,169 @@ describe("SiteHeader", () => {
         window.scrollY = 0;
         fireEvent.scroll(window);
         expect(header).not.toHaveClass("shadow-refined");
+    });
+
+    it("shows dashboard and logout controls for an authenticated member", () => {
+        const clearSession = vi.fn();
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 7,
+                            phone: "09123456789",
+                            firstName: "سارا",
+                            lastName: "احمدی",
+                            role: "MEMBER",
+                            createdAt:
+                                "2026-09-10T08:00:00.000Z",
+                        },
+                        accessToken: "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt: new Date(
+                            Date.now() + 15 * 60 * 1000,
+                        ).toISOString(),
+                    },
+                    authStatus: "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession,
+                }}
+            >
+                <SiteHeader />
+            </AuthContext.Provider>,
+        );
+
+        const desktopNavigation = screen.getByRole(
+            "navigation",
+            {
+                name: "ناوبری اصلی",
+            },
+        );
+
+        expect(
+            within(desktopNavigation).getByRole("link", {
+                name: "داشبورد",
+            }),
+        ).toHaveAttribute("href", "/dashboard");
+
+        expect(
+            within(desktopNavigation).getByRole("button", {
+                name: "خروج",
+            }),
+        ).toBeInTheDocument();
+
+        expect(
+            within(desktopNavigation).queryByRole("link", {
+                name: "ورود",
+            }),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "باز کردن منو",
+            }),
+        );
+
+        const mobileNavigation = screen.getByRole(
+            "navigation",
+            {
+                name: "ناوبری موبایل",
+            },
+        );
+
+        expect(
+            within(mobileNavigation).getByRole("link", {
+                name: "داشبورد",
+            }),
+        ).toHaveAttribute("href", "/dashboard");
+
+        expect(
+            within(mobileNavigation).getByRole("button", {
+                name: "خروج",
+            }),
+        ).toBeInTheDocument();
+
+        expect(
+            within(mobileNavigation).queryByRole("link", {
+                name: "ورود",
+            }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("logs out through the session endpoint before clearing the session", async () => {
+        const clearSession = vi.fn();
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            status: 204,
+        });
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 7,
+                            phone: "09123456789",
+                            firstName: "سارا",
+                            lastName: "احمدی",
+                            role: "MEMBER",
+                            createdAt:
+                                "2026-09-10T08:00:00.000Z",
+                        },
+                        accessToken: "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt: new Date(
+                            Date.now() + 15 * 60 * 1000,
+                        ).toISOString(),
+                    },
+                    authStatus: "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession,
+                }}
+            >
+                <SiteHeader />
+            </AuthContext.Provider>,
+        );
+
+        const desktopNavigation = screen.getByRole(
+            "navigation",
+            {
+                name: "ناوبری اصلی",
+            },
+        );
+
+        fireEvent.click(
+            within(desktopNavigation).getByRole("button", {
+                name: "خروج",
+            }),
+        );
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+        });
+
+        const [url, options] = fetchMock.mock.calls[0];
+
+        expect(url).toMatch(/\/auth\/logout$/);
+
+        expect(options).toEqual(
+            expect.objectContaining({
+                method: "POST",
+                credentials: "include",
+                headers: expect.objectContaining({
+                    "Content-Type": "application/json",
+                    "X-CSRF-Protection": "1",
+                }),
+            }),
+        );
+
+        expect(JSON.parse(options.body)).toEqual({});
+
+        await waitFor(() => {
+            expect(clearSession).toHaveBeenCalledTimes(1);
+        });
     });
 });

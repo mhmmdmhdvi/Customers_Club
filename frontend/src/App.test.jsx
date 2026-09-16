@@ -59,7 +59,7 @@ describe("App", () => {
             within(header).getByRole("link", {
                 name: "صفحه اصلی باشگاه مشتریان",
             }),
-        ).toHaveAttribute("href", "#hero");
+        ).toHaveAttribute("href", "/#hero");
     });
 
     it("reveals hero content when IntersectionObserver is unavailable", async () => {
