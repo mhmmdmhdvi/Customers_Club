@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import loginImage from "../assets/images/hero-slab.jpg";
+import { parseAuthenticatedSession } from "../auth/sessionResponse";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
-export function LoginPage() {
+export function LoginPage({
+    onAuthenticated = () => { },
+}) {
     const [step, setStep] = useState("phone");
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
@@ -133,6 +136,7 @@ export function LoginPage() {
 
                     establishSession(nextSession);
                     setVerification(null);
+                    onAuthenticated();
                 } catch {
                     // Do not automatically repeat a single-use proof exchange.
                     setVerification(null);
@@ -226,34 +230,24 @@ export function LoginPage() {
                 return;
             }
 
-            // A successful HTTP response must also contain a usable session.
-            if (
-                data?.authenticated !== true ||
-                data?.tokenType !== "Bearer" ||
-                typeof data?.accessToken !== "string" ||
-                data.accessToken.length === 0 ||
-                !Number.isSafeInteger(data?.user?.id) ||
-                data.user.id <= 0 ||
-                typeof data.user.firstName !== "string" ||
-                typeof data.user.lastName !== "string" ||
-                !Number.isFinite(Date.parse(data?.accessExpiresAt)) ||
-                Date.parse(data.accessExpiresAt) <= Date.now()
-            ) {
-                setError("پاسخ ورود معتبر نیست. لطفاً دوباره وارد شوید.");
+            let nextSession;
+
+            try {
+                nextSession = parseAuthenticatedSession(data);
+            } catch {
+                setError(
+                    "پاسخ ورود معتبر نیست. لطفاً دوباره وارد شوید.",
+                );
                 return;
             }
 
-            establishSession({
-                user: data.user,
-                accessToken: data.accessToken,
-                tokenType: data.tokenType,
-                accessExpiresAt: data.accessExpiresAt,
-            });
+            establishSession(nextSession);
 
             // The registration proof has now served its purpose.
             setVerification(null);
             setFirstName("");
             setLastName("");
+            onAuthenticated();
         } catch {
             setError("نتیجه ثبت‌نام مشخص نیست. لطفاً دوباره وارد شوید.");
         } finally {
@@ -280,29 +274,8 @@ export function LoginPage() {
         }
 
         const data = await response.json();
-        const expiresAt = Date.parse(data?.accessExpiresAt);
 
-        if (
-            data?.authenticated !== true ||
-            data?.tokenType !== "Bearer" ||
-            typeof data?.accessToken !== "string" ||
-            data.accessToken.length === 0 ||
-            !Number.isSafeInteger(data?.user?.id) ||
-            data.user.id <= 0 ||
-            typeof data.user.firstName !== "string" ||
-            typeof data.user.lastName !== "string" ||
-            !Number.isFinite(expiresAt) ||
-            expiresAt <= Date.now()
-        ) {
-            throw new Error("Invalid login response");
-        }
-
-        return {
-            user: data.user,
-            accessToken: data.accessToken,
-            tokenType: data.tokenType,
-            accessExpiresAt: data.accessExpiresAt,
-        };
+        return parseAuthenticatedSession(data);
     }
 
     async function handleResetSession() {

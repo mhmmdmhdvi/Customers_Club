@@ -19,6 +19,7 @@ const testSession = {
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     },
     tokenType: "Bearer",
     accessToken: "test.access.token",
@@ -134,6 +135,7 @@ describe("AuthProvider", () => {
             firstName: "سارا",
             lastName: "احمدی",
             role: "MEMBER",
+            createdAt: "2026-09-10T08:00:00.000Z",
         };
 
         const fetchMock = vi.fn().mockResolvedValue({
@@ -187,6 +189,7 @@ describe("AuthProvider", () => {
             firstName: "سارا",
             lastName: "احمدی",
             role: "MEMBER",
+            createdAt: "2026-09-10T08:00:00.000Z",
         };
 
         let resolveRefresh;
@@ -237,6 +240,7 @@ describe("AuthProvider", () => {
             firstName: "سارا",
             lastName: "احمدی",
             role: "MEMBER",
+            createdAt: "2026-09-10T08:00:00.000Z",
         };
 
         let resolveRefresh;
@@ -288,6 +292,7 @@ describe("AuthProvider", () => {
             firstName: "سارا",
             lastName: "احمدی",
             role: "MEMBER",
+            createdAt: "2026-09-10T08:00:00.000Z",
         };
 
         vi.stubGlobal(

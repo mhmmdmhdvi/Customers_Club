@@ -11,11 +11,12 @@ import {
     it,
     vi,
 } from "vitest";
-
+import { AuthContext } from "./auth/AuthContext";
 import App from "./App";
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    window.history.replaceState({}, "", "/");
 });
 
 describe("App", () => {
@@ -58,7 +59,7 @@ describe("App", () => {
             within(header).getByRole("link", {
                 name: "صفحه اصلی باشگاه مشتریان",
             }),
-        ).toHaveAttribute("href", "#hero");
+        ).toHaveAttribute("href", "/#hero");
     });
 
     it("reveals hero content when IntersectionObserver is unavailable", async () => {
@@ -126,5 +127,70 @@ describe("App", () => {
         const footer = screen.getByRole("contentinfo");
 
         expect(footer).toBeInTheDocument();
+    });
+
+    it("redirects an unauthenticated dashboard visitor to login", async () => {
+        window.history.replaceState({}, "", "/dashboard");
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: null,
+                    authStatus: "unauthenticated",
+                    establishSession: vi.fn(),
+                    clearSession: vi.fn(),
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/login");
+        });
+
+        expect(
+            screen.getByRole("textbox", {
+                name: "شماره موبایل",
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it("renders the dashboard for an authenticated member", () => {
+        window.history.replaceState({}, "", "/dashboard");
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 7,
+                            phone: "09123456789",
+                            firstName: "سارا",
+                            lastName: "احمدی",
+                            role: "MEMBER",
+                            createdAt:
+                                "2026-09-16T08:00:00.000Z",
+                        },
+                        accessToken: "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt: new Date(
+                            Date.now() + 15 * 60 * 1000,
+                        ).toISOString(),
+                    },
+                    authStatus: "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession: vi.fn(),
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        expect(
+            screen.getByRole("heading", {
+                name: "اطلاعات عضویت",
+            }),
+        ).toBeInTheDocument();
     });
 });

@@ -16,6 +16,7 @@ const sharedSession = {
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     },
     accessToken: "test.access.token",
     tokenType: "Bearer",
@@ -66,10 +67,10 @@ function renderWithUnauthenticatedRefresh(ui) {
     return render(ui);
 }
 
-async function renderLoginPage() {
+async function renderLoginPage(props = {}) {
     const result = renderWithUnauthenticatedRefresh(
         <AuthProvider>
-            <LoginPage />
+            <LoginPage {...props} />
         </AuthProvider>,
     );
 
@@ -309,6 +310,7 @@ it("shows registration fields after verifying a new member's code", async () => 
 });
 
 it("registers a new member and shows a signed-in confirmation", async () => {
+    const onAuthenticated = vi.fn();
     const phone = "09123456789";
     const code = "123456";
     const verificationToken = "a".repeat(64);
@@ -319,6 +321,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
         firstName: "علی",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     const fetchMock = vi
@@ -361,7 +364,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await renderLoginPage();
+    await renderLoginPage({ onAuthenticated });
 
     fireEvent.change(
         screen.getByRole("textbox", { name: "شماره موبایل" }),
@@ -432,9 +435,11 @@ it("registers a new member and shows a signed-in confirmation", async () => {
         firstName: user.firstName,
         lastName: user.lastName,
     });
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
 });
 
 it("logs in an existing member without showing registration fields", async () => {
+    const onAuthenticated = vi.fn();
     const phone = "09123456789";
     const code = "123456";
     const verificationToken = "b".repeat(64);
@@ -445,6 +450,7 @@ it("logs in an existing member without showing registration fields", async () =>
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     const fetchMock = vi
@@ -490,7 +496,7 @@ it("logs in an existing member without showing registration fields", async () =>
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await renderLoginPage();
+    await renderLoginPage({ onAuthenticated });
 
     // Enter the phone number and request a code.
     fireEvent.change(
@@ -556,6 +562,7 @@ it("logs in an existing member without showing registration fields", async () =>
     expect(JSON.parse(options.body)).toEqual({
         verificationToken,
     });
+    expect(onAuthenticated).toHaveBeenCalledTimes(1);
 });
 
 it("logs out and returns to an empty phone-number form", async () => {
@@ -569,6 +576,7 @@ it("logs out and returns to an empty phone-number form", async () => {
         firstName: "سارا",
         lastName: "احمدی",
         role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
     };
 
     // A 204 response has no JSON body to read.
