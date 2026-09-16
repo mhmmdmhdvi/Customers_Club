@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.resetModules();
     localStorage.clear();
 });
@@ -248,4 +249,49 @@ it("clears the refresh block best-effort when storage removal is unavailable", a
     }).not.toThrow();
 
     removeItemSpy.mockRestore();
+});
+
+it("does not refresh if the safety block cannot be set before the request", async () => {
+    const lockRequest = vi.fn((_name, callback) => callback());
+
+    vi.stubGlobal("navigator", {
+        locks: {
+            request: lockRequest,
+        },
+    });
+
+    const originalSetItem = Storage.prototype.setItem;
+
+    let storageWrites = 0;
+
+    vi.spyOn(Storage.prototype, "setItem")
+        .mockImplementation(function (key, value) {
+            storageWrites += 1;
+
+            // First write is the storage probe and should work.
+            if (storageWrites === 2) {
+                throw new DOMException(
+                    "Storage unavailable",
+                    "SecurityError",
+                );
+            }
+
+            return originalSetItem.call(this, key, value);
+        });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    vi.resetModules();
+    const auth = await import("./refreshSession");
+
+    await expect(
+        auth.refreshSession(),
+    ).rejects.toThrow();
+
+    expect(fetchMock).not.toHaveBeenCalled();
 });

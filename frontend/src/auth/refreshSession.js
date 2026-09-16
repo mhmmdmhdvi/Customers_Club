@@ -109,12 +109,13 @@ async function performCoordinatedRefresh() {
 
             assertRefreshStorageWritable();
 
-            try {
-                return await performRefresh();
-            } catch (error) {
-                blockRefresh();
-                throw error;
-            }
+            blockRefresh();
+
+            const result = await performRefresh();
+
+            clearRefreshBlock();
+
+            return result;
         },
     );
 }
