@@ -10,6 +10,7 @@ import { useReveal } from "./hooks/useReveal";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { useState } from "react";
+import { ContactPage } from "./pages/ContactPage";
 
 function App() {
   useReveal();
@@ -30,6 +31,10 @@ function App() {
   const isDashboardPage =
     pathname === "/dashboard" ||
     pathname === "/dashboard/";
+
+  const isContactPage =
+    pathname === "/contact" ||
+    pathname === "/contact/";
 
   if (isLoginPage) {
     return (
@@ -52,6 +57,10 @@ function App() {
         }
       />
     );
+  }
+
+  if (isContactPage) {
+    return <ContactPage />;
   }
 
   return (

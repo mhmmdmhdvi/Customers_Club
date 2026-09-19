@@ -15,7 +15,7 @@ const API_BASE_URL =
 const navigation = [
     { label: "رویدادها", href: "/#events" },
     { label: "درباره ما", href: "/#about" },
-    { label: "تماس با ما", href: "/#contact" },
+    { label: "تماس با ما", href: "/contact" },
 ];
 
 export function SiteHeader({

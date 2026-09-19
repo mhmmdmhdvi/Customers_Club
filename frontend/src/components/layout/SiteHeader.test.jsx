@@ -107,7 +107,7 @@ describe("SiteHeader", () => {
             within(mobileNavigation).getByRole("link", {
                 name: "تماس با ما",
             }),
-        ).toHaveAttribute("href", "/#contact");
+        ).toHaveAttribute("href", "/contact");
         expect(
             within(mobileNavigation).getByRole("link", {
                 name: "ورود",
@@ -135,6 +135,12 @@ describe("SiteHeader", () => {
                 name: "ورود",
             }),
         ).toHaveAttribute("href", "/login");
+
+        expect(
+            within(desktopNavigation).getByRole("link", {
+                name: "تماس با ما",
+            }),
+        ).toHaveAttribute("href", "/contact");
     });
     it("adds the scrolled header treatment after the page moves", () => {
         Object.defineProperty(window, "scrollY", {
