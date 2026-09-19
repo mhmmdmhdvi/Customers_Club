@@ -399,3 +399,33 @@ test("concurrent requests cannot bypass the three-per-hour limit", async () => {
 
     assert.equal(state.created.length, 3);
 });
+
+test("rejects a NUL byte in the message without writing", async () => {
+    const { state, service } = fixture();
+
+    await assert.rejects(
+        service.createMessage(
+            validInput({
+                message: "پیام\u0000نامعتبر",
+            }),
+        ),
+        (error) => error.statusCode === 400,
+    );
+
+    assert.equal(state.created.length, 0);
+});
+
+test("rejects a NUL byte in the optional email without writing", async () => {
+    const { state, service } = fixture();
+
+    await assert.rejects(
+        service.createMessage(
+            validInput({
+                email: "test\u0000@example.com",
+            }),
+        ),
+        (error) => error.statusCode === 400,
+    );
+
+    assert.equal(state.created.length, 0);
+});

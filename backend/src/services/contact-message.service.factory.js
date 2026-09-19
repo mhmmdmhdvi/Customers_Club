@@ -43,6 +43,12 @@ function normalizeRequiredText(
         .normalize("NFC")
         .trim();
 
+    if (normalized.includes("\u0000")) {
+        throw new ContactMessageError(
+            `${label} contains invalid characters`,
+        );
+    }
+
     const length = Array.from(normalized).length;
 
     if (length < 1 || length > maxLength) {
@@ -86,6 +92,12 @@ function normalizeEmail(value) {
     }
 
     const email = value.trim().toLowerCase();
+
+    if (email.includes("\u0000")) {
+        throw new ContactMessageError(
+            "Invalid email",
+        );
+    }
 
     // An empty email field is valid because email is optional.
     if (email === "") {
