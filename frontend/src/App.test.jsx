@@ -1,4 +1,5 @@
 import {
+    fireEvent,
     render,
     screen,
     waitFor,
@@ -190,6 +191,70 @@ describe("App", () => {
         expect(
             screen.getByRole("heading", {
                 name: "اطلاعات عضویت",
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it("returns to the landing page after a confirmed dashboard logout", async () => {
+        window.history.replaceState(
+            {},
+            "",
+            "/dashboard",
+        );
+
+        const clearSession = vi.fn();
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            status: 204,
+        });
+
+        vi.stubGlobal("fetch", fetchMock);
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 7,
+                            phone: "09123456789",
+                            firstName: "سارا",
+                            lastName: "احمدی",
+                            role: "MEMBER",
+                            createdAt:
+                                "2026-09-16T08:00:00.000Z",
+                        },
+                        accessToken:
+                            "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt: new Date(
+                            Date.now() +
+                            15 * 60 * 1000,
+                        ).toISOString(),
+                    },
+                    authStatus: "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession,
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "خروج",
+            }),
+        );
+
+        await waitFor(() => {
+            expect(clearSession).toHaveBeenCalledTimes(1);
+        });
+
+        expect(window.location.pathname).toBe("/");
+
+        expect(
+            screen.getByRole("region", {
+                name: "بخش معرفی باشگاه مشتریان",
             }),
         ).toBeInTheDocument();
     });
