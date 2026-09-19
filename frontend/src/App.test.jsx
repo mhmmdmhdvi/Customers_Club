@@ -258,4 +258,24 @@ describe("App", () => {
             }),
         ).toBeInTheDocument();
     });
+
+    it("renders the standalone contact page at /contact", () => {
+        window.history.replaceState({}, "", "/contact");
+
+        render(<App />);
+
+        expect(
+            screen.getByRole("heading", {
+                name: "تماس با ما",
+            }),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText("راه‌های ارتباطی با ما"),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText("ارسال پیام به ما"),
+        ).toBeInTheDocument();
+    });
 });
