@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import {
+    Home,
+    LogOut,
+    Menu,
+    X,
+} from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
 import megatiteMark from "../../assets/branding/megatite-mark.svg";
@@ -13,7 +18,10 @@ const navigation = [
     { label: "تماس با ما", href: "/#contact" },
 ];
 
-export function SiteHeader({ solid = false }) {
+export function SiteHeader({
+    solid = false,
+    onLoggedOut = () => { },
+}) {
     const auth = useAuth();
 
     const session = auth?.session ?? null;
@@ -24,6 +32,10 @@ export function SiteHeader({ solid = false }) {
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const isAuthenticated = Boolean(session);
+
+    const isDashboardPage =
+        window.location.pathname === "/dashboard" ||
+        window.location.pathname === "/dashboard/";
 
     useEffect(() => {
         function handleScroll() {
@@ -76,6 +88,7 @@ export function SiteHeader({ solid = false }) {
 
             clearSession();
             closeMenu();
+            onLoggedOut();
         } finally {
             setIsLoggingOut(false);
         }
@@ -86,8 +99,8 @@ export function SiteHeader({ solid = false }) {
     return (
         <header
             className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,box-shadow] duration-300 ${hasSolidHeader
-                    ? "border-b border-border bg-background/90 backdrop-blur-md shadow-refined"
-                    : "border-b border-transparent bg-background/0"
+                ? "border-b border-border bg-background/90 backdrop-blur-md shadow-refined"
+                : "border-b border-transparent bg-background/0"
                 }`}
         >
             <div className="page-container flex min-h-18 items-center justify-between gap-6 py-4">
@@ -131,25 +144,42 @@ export function SiteHeader({ solid = false }) {
                     ))}
 
                     {isAuthenticated ? (
-                        <>
+                        <div className="flex items-center gap-2">
                             <a
                                 href="/dashboard"
-                                className="text-sm font-semibold text-foreground"
+                                aria-current={
+                                    isDashboardPage
+                                        ? "page"
+                                        : undefined
+                                }
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#2f7ee6] px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_22px_-12px_rgba(47,126,230,0.75)] transition-all duration-200 hover:bg-[#236fda] hover:shadow-[0_10px_24px_-10px_rgba(47,126,230,0.8)]"
                             >
-                                داشبورد
+                                <Home
+                                    className="size-4.5"
+                                    aria-hidden="true"
+                                />
+
+                                <span>داشبورد</span>
                             </a>
 
                             <button
                                 type="button"
                                 onClick={handleLogout}
                                 disabled={isLoggingOut}
-                                className="border border-border-strong px-5 py-2 text-sm font-semibold text-foreground transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-ink-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex items-center gap-2 rounded-xl border border-[#d5e0ee] bg-white px-5 py-2.5 text-sm font-bold text-[#24324b] shadow-[0_4px_14px_-10px_rgba(35,60,90,0.45)] transition-all duration-200 hover:border-[#b9cbe0] hover:bg-[#f7faff] disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isLoggingOut
-                                    ? "در حال خروج..."
-                                    : "خروج"}
+                                <LogOut
+                                    className="size-4.5"
+                                    aria-hidden="true"
+                                />
+
+                                <span>
+                                    {isLoggingOut
+                                        ? "در حال خروج..."
+                                        : "خروج"}
+                                </span>
                             </button>
-                        </>
+                        </div>
                     ) : (
                         <a
                             href="/login"
@@ -209,26 +239,43 @@ export function SiteHeader({ solid = false }) {
                         ))}
 
                         {isAuthenticated ? (
-                            <>
+                            <div className="flex flex-col gap-2 py-4">
                                 <a
                                     href="/dashboard"
+                                    aria-current={
+                                        isDashboardPage
+                                            ? "page"
+                                            : undefined
+                                    }
                                     onClick={closeMenu}
-                                    className="border-b border-border py-4 text-sm font-semibold text-foreground"
+                                    className="flex items-center justify-center gap-2 rounded-xl bg-[#2f7ee6] px-5 py-3 text-sm font-bold text-white"
                                 >
-                                    داشبورد
+                                    <Home
+                                        className="size-4.5"
+                                        aria-hidden="true"
+                                    />
+
+                                    <span>داشبورد</span>
                                 </a>
 
                                 <button
                                     type="button"
                                     onClick={handleLogout}
                                     disabled={isLoggingOut}
-                                    className="my-4 bg-ink px-5 py-3 text-center text-sm font-semibold text-ink-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="flex items-center justify-center gap-2 rounded-xl border border-[#d5e0ee] bg-white px-5 py-3 text-sm font-bold text-[#24324b] disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {isLoggingOut
-                                        ? "در حال خروج..."
-                                        : "خروج"}
+                                    <LogOut
+                                        className="size-4.5"
+                                        aria-hidden="true"
+                                    />
+
+                                    <span>
+                                        {isLoggingOut
+                                            ? "در حال خروج..."
+                                            : "خروج"}
+                                    </span>
                                 </button>
-                            </>
+                            </div>
                         ) : (
                             <a
                                 href="/login"

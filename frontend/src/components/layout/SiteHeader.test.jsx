@@ -18,6 +18,7 @@ import { SiteHeader } from "./SiteHeader";
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    window.history.replaceState({}, "", "/");
 });
 
 describe("SiteHeader", () => {
@@ -153,6 +154,7 @@ describe("SiteHeader", () => {
     });
 
     it("shows dashboard and logout controls for an authenticated member", () => {
+        window.history.replaceState({}, "", "/dashboard");
         const clearSession = vi.fn();
 
         render(
@@ -190,16 +192,34 @@ describe("SiteHeader", () => {
             },
         );
 
-        expect(
-            within(desktopNavigation).getByRole("link", {
-                name: "داشبورد",
-            }),
-        ).toHaveAttribute("href", "/dashboard");
+        const dashboardLink = within(
+            desktopNavigation,
+        ).getByRole("link", {
+            name: "داشبورد",
+        });
+
+        expect(dashboardLink).toHaveAttribute(
+            "href",
+            "/dashboard",
+        );
+
+        expect(dashboardLink).toHaveAttribute(
+            "aria-current",
+            "page",
+        );
 
         expect(
-            within(desktopNavigation).getByRole("button", {
-                name: "خروج",
-            }),
+            dashboardLink.querySelector("svg"),
+        ).toBeInTheDocument();
+
+        const logoutButton = within(
+            desktopNavigation,
+        ).getByRole("button", {
+            name: "خروج",
+        });
+
+        expect(
+            logoutButton.querySelector("svg"),
         ).toBeInTheDocument();
 
         expect(

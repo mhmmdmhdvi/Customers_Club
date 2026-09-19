@@ -2,6 +2,7 @@ import {
     render,
     screen,
     waitFor,
+    within,
 } from "@testing-library/react";
 import {
     describe,
@@ -76,7 +77,9 @@ describe("DashboardPage", () => {
         expect(
             screen.getByText("وضعیت عضویت"),
         ).toBeInTheDocument();
-        expect(screen.getByText("فعال")).toBeInTheDocument();
+        expect(
+            screen.getByText("عضو فعال"),
+        ).toBeInTheDocument();
 
         expect(
             screen.getByText("تاریخ عضویت"),
@@ -88,6 +91,59 @@ describe("DashboardPage", () => {
         expect(
             screen.queryByText(
                 "2026-09-16T08:00:00.000Z",
+            ),
+        ).not.toBeInTheDocument();
+    });
+
+    it("renders the approved dashboard hero and membership card", () => {
+        renderDashboard({
+            session: memberSession,
+            authStatus: "authenticated",
+            establishSession: vi.fn(),
+            clearSession: vi.fn(),
+        });
+
+        const hero = screen.getByRole("region", {
+            name: "معرفی داشبورد",
+        });
+
+        expect(
+            within(hero).getByText("مگاتایت"),
+        ).toBeInTheDocument();
+
+        expect(hero).toHaveTextContent(
+            "بیش از یک خرید،",
+        );
+
+        expect(hero).toHaveTextContent(
+            "یک همراهی پایدار...",
+        );
+
+        expect(
+            screen.getByText(
+                "اطلاعات ثبت شده شما در باشگاه مشتریان مگاتایت",
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.queryByText("امتیاز خرید"),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByText("تعداد خرید"),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByText("تاریخچه خریدها"),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByText("استفاده از امتیازات"),
+        ).not.toBeInTheDocument();
+
+        expect(
+            screen.queryByText(
+                "دسترسی به پیشنهاد های ویژه",
             ),
         ).not.toBeInTheDocument();
     });

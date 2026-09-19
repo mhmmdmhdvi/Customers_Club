@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",
+    "@fontsource/mirza": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.38.0",
     "react": "^19.2.8",

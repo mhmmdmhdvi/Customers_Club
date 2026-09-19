@@ -47,6 +47,9 @@ function App() {
         onRequireLogin={() =>
           navigate("/login")
         }
+        onLoggedOut={() =>
+          navigate("/")
+        }
       />
     );
   }
