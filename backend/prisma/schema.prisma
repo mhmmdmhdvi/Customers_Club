@@ -93,3 +93,31 @@ model RefreshToken {
 
   @@index([sessionId])
 }
+
+enum ContactMessageSubject {
+  SUPPORT
+  SUGGESTION
+  COMPLAINT
+  OTHER
+}
+
+enum ContactMessageStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
+model ContactMessage {
+  id        Int                   @id @default(autoincrement())
+  name      String                @db.VarChar(80)
+  phone     String                @db.VarChar(11)
+  email     String?               @db.VarChar(254)
+  subject   ContactMessageSubject
+  message   String                @db.VarChar(250)
+  status    ContactMessageStatus  @default(NEW)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone, createdAt])
+}

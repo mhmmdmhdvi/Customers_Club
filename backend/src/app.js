@@ -2,14 +2,18 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { sessionCorsOptions } = require("./config/auth");
-const healthRoutes=require("./routes/health.routes");
-const app=express();
-const authRoutes=require("./routes/auth.routes");
+const healthRoutes = require("./routes/health.routes");
+const app = express();
+const authRoutes = require("./routes/auth.routes");
+const contactMessageRoutes = require(
+    "./routes/contact-message.routes",
+);
 
 app.use(helmet());
 app.use(cors(sessionCorsOptions));
 app.use(express.json());
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
+app.use("/contact", contactMessageRoutes);
 
-module.exports=app;
+module.exports = app;
