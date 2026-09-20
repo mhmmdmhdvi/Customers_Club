@@ -283,4 +283,134 @@ describe("App", () => {
             screen.getByText("ارسال پیام به ما"),
         ).toBeInTheDocument();
     });
+
+    it("renders the admin console for an authenticated ADMIN", () => {
+        window.history.replaceState(
+            {},
+            "",
+            "/admin",
+        );
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 1,
+                            phone: "09121234567",
+                            firstName: "مدیر",
+                            lastName: "سیستم",
+                            role: "ADMIN",
+                            createdAt:
+                                "2026-09-20T08:00:00.000Z",
+                        },
+                        accessToken:
+                            "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt:
+                            new Date(
+                                Date.now() +
+                                15 * 60 * 1000,
+                            ).toISOString(),
+                    },
+                    authStatus:
+                        "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession: vi.fn(),
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        expect(
+            screen.getByRole("heading", {
+                name: "مرکز مدیریت",
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it("redirects an unauthenticated admin visitor to login", async () => {
+        window.history.replaceState(
+            {},
+            "",
+            "/admin",
+        );
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: null,
+                    authStatus: "unauthenticated",
+                    establishSession: vi.fn(),
+                    clearSession: vi.fn(),
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        await waitFor(() => {
+            expect(
+                window.location.pathname,
+            ).toBe("/login");
+        });
+
+        expect(
+            screen.getByRole("textbox", {
+                name: "شماره موبایل",
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it("redirects a MEMBER away from the admin console", async () => {
+        window.history.replaceState(
+            {},
+            "",
+            "/admin",
+        );
+
+        render(
+            <AuthContext.Provider
+                value={{
+                    session: {
+                        user: {
+                            id: 7,
+                            phone: "09123456789",
+                            firstName: "سارا",
+                            lastName: "احمدی",
+                            role: "MEMBER",
+                            createdAt:
+                                "2026-09-16T08:00:00.000Z",
+                        },
+                        accessToken:
+                            "test.access.token",
+                        tokenType: "Bearer",
+                        accessExpiresAt:
+                            new Date(
+                                Date.now() +
+                                15 * 60 * 1000,
+                            ).toISOString(),
+                    },
+                    authStatus: "authenticated",
+                    establishSession: vi.fn(),
+                    clearSession: vi.fn(),
+                }}
+            >
+                <App />
+            </AuthContext.Provider>,
+        );
+
+        await waitFor(() => {
+            expect(
+                window.location.pathname,
+            ).toBe("/dashboard");
+        });
+
+        expect(
+            screen.getByRole("heading", {
+                name: "اطلاعات عضویت",
+            }),
+        ).toBeInTheDocument();
+    });
 });
