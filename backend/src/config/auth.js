@@ -36,8 +36,16 @@ function createSessionCorsOptions(getConfig = readAuthConfig) {
     callback(null, {
       origin: typeof origin === "string" && allowedOrigins.includes(origin) ? origin : false,
       credentials: true,
-      methods: ["GET", "POST", "OPTIONS"],
+      methods: [
+        "GET",
+        "POST",
+        "PATCH",
+        "OPTIONS",
+      ],
       allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Protection"],
+      exposedHeaders: [
+        "X-Request-Id",
+      ],
       maxAge: 600,
     });
   };

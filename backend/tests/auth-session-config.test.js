@@ -2,8 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const { readAuthConfig } = require("../src/config/auth");
-const valid = () => ({ NODE_ENV: "test", ACCESS_TOKEN_SECRET: crypto.randomBytes(32).toString("hex"),
-  JWT_ISSUER: "test-api", JWT_AUDIENCE: "test-client", AUTH_ALLOWED_ORIGINS: "http://localhost:5173" });
+const valid = () => ({
+  NODE_ENV: "test", ACCESS_TOKEN_SECRET: crypto.randomBytes(32).toString("hex"),
+  JWT_ISSUER: "test-api", JWT_AUDIENCE: "test-client", AUTH_ALLOWED_ORIGINS: "http://localhost:5173"
+});
 
 test("explicit local test configuration is accepted", () => {
   const result = readAuthConfig(valid());
@@ -46,12 +48,71 @@ test("configuration errors never disclose a signing key", () => {
 });
 
 const { createSessionCorsOptions } = require("../src/config/auth");
-for(const [origin,allowed] of [["http://localhost:5173",true],["https://attacker.test",false],[undefined,false]]) {
-  test(`CORS allows only explicit origin: ${origin}`,()=>{
-    const cors=createSessionCorsOptions(()=>readAuthConfig(valid()));
-    cors({headers:{origin}},(error,options)=>{assert.equal(error,null);assert.equal(options.origin,allowed?origin:false);assert.equal(options.credentials,true);assert.ok(options.allowedHeaders.includes("X-CSRF-Protection"));});
+for (const [origin, allowed] of [["http://localhost:5173", true], ["https://attacker.test", false], [undefined, false]]) {
+  test(`CORS allows only explicit origin: ${origin}`, () => {
+    const cors = createSessionCorsOptions(() => readAuthConfig(valid()));
+    cors({ headers: { origin } }, (error, options) => { assert.equal(error, null); assert.equal(options.origin, allowed ? origin : false); assert.equal(options.credentials, true); assert.ok(options.allowedHeaders.includes("X-CSRF-Protection")); });
   });
 }
-test("missing configuration cannot enable credentialed CORS",()=>{
-  createSessionCorsOptions(()=>{throw new Error("missing");})({headers:{origin:"https://attacker.test"}},(error,options)=>assert.equal(options.origin,false));
+test("missing configuration cannot enable credentialed CORS", () => {
+  createSessionCorsOptions(() => { throw new Error("missing"); })({ headers: { origin: "https://attacker.test" } }, (error, options) => assert.equal(options.origin, false));
+});
+
+test("CORS permits PATCH for protected admin mutations", () => {
+  const cors = createSessionCorsOptions(
+    () => readAuthConfig(valid()),
+  );
+
+  cors(
+    {
+      headers: {
+        origin:
+          "http://localhost:5173",
+      },
+    },
+    (error, options) => {
+      assert.equal(error, null);
+
+      assert.deepEqual(
+        options.methods,
+        [
+          "GET",
+          "POST",
+          "PATCH",
+          "OPTIONS",
+        ],
+      );
+
+      assert.ok(
+        options.allowedHeaders.includes(
+          "X-CSRF-Protection",
+        ),
+      );
+    },
+  );
+});
+
+test("CORS exposes the server request id header", () => {
+  const cors = createSessionCorsOptions(
+    () => readAuthConfig(valid()),
+  );
+
+  cors(
+    {
+      headers: {
+        origin:
+          "http://localhost:5173",
+      },
+    },
+    (error, options) => {
+      assert.equal(error, null);
+
+      assert.deepEqual(
+        options.exposedHeaders,
+        [
+          "X-Request-Id",
+        ],
+      );
+    },
+  );
 });

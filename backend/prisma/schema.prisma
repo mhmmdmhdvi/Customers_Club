@@ -121,3 +121,48 @@ model ContactMessage {
   @@index([status, createdAt])
   @@index([phone, createdAt])
 }
+
+enum AdminAuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
+model AdminAuditEvent {
+  id          Int               @id @default(autoincrement())
+  actorUserId Int
+  action      String            @db.VarChar(80)
+  targetType  String            @db.VarChar(80)
+  targetId    String            @db.VarChar(128)
+  outcome     AdminAuditOutcome
+  requestId   String?           @db.VarChar(128)
+  details     Json?
+  createdAt   DateTime          @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId, createdAt])
+}
+
+enum SecurityEventOutcome {
+  SUCCESS
+  FAILURE
+}
+
+model SecurityEvent {
+  id          Int                  @id @default(autoincrement())
+  eventType   String               @db.VarChar(80)
+  outcome     SecurityEventOutcome
+  actorUserId Int?
+  requestId   String?              @db.VarChar(128)
+  route       String               @db.VarChar(255)
+  statusCode  Int
+  details     Json?
+  createdAt   DateTime             @default(now())
+
+  @@index([createdAt])
+  @@index([eventType, createdAt])
+  @@index([outcome, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([statusCode, createdAt])
+}
