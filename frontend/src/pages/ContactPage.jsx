@@ -7,9 +7,17 @@ import {
     Send,
     UserRound,
 } from "lucide-react";
-
+import {
+    useRef,
+    useState,
+} from "react";
+import { useToast } from "../components/ui/ToastContext";
 import dashboardBanner from "../assets/images/dashboard-tehran-banner.jpg";
 import { SiteHeader } from "../components/layout/SiteHeader";
+
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL ??
+    "http://localhost:3000";
 
 const contactItems = [
     {
@@ -39,6 +47,111 @@ const contactItems = [
 ];
 
 export function ContactPage() {
+
+    const toast = useToast();
+
+    const [isSubmitting, setIsSubmitting] =
+        useState(false);
+
+    const submissionLock = useRef(false);
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+
+        if (submissionLock.current) {
+            return;
+        }
+
+        submissionLock.current = true;
+        setIsSubmitting(true);
+
+        const form = event.currentTarget;
+
+        const formData = new FormData(form);
+
+        const name = String(
+            formData.get("name") ?? "",
+        )
+            .normalize("NFC")
+            .trim();
+
+        const phone = String(
+            formData.get("phone") ?? "",
+        ).trim();
+
+        const email = String(
+            formData.get("email") ?? "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const subject = String(
+            formData.get("subject") ?? "",
+        ).toUpperCase();
+
+        const message = String(
+            formData.get("message") ?? "",
+        )
+            .normalize("NFC")
+            .trim();
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/contact/messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+                    body: JSON.stringify({
+                        name,
+                        phone,
+                        email: email || null,
+                        subject,
+                        message,
+                    }),
+                },
+            );
+
+            if (!response.ok) {
+                if (response.status === 429) {
+                    toast.warning(
+                        "تعداد پیام‌های ارسالی زیاد است. لطفاً کمی بعد دوباره تلاش کنید.",
+                    );
+
+                    return;
+                }
+
+                if (response.status === 400) {
+                    toast.error(
+                        "اطلاعات واردشده معتبر نیست. لطفاً فرم را بررسی کنید.",
+                    );
+
+                    return;
+                }
+
+                toast.error(
+                    "ارسال پیام انجام نشد. لطفاً دوباره تلاش کنید.",
+                );
+
+                return;
+            }
+
+            form.reset();
+
+            toast.success(
+                "پیام شما با موفقیت ارسال شد.",
+            );
+        } catch {
+            toast.error(
+                "ارسال پیام انجام نشد. لطفاً دوباره تلاش کنید.",
+            );
+        } finally {
+            submissionLock.current = false;
+            setIsSubmitting(false);
+        }
+    }
     return (
         <div
             dir="rtl"
@@ -147,7 +260,10 @@ export function ContactPage() {
                             </div>
                         </div>
 
-                        <form className="mt-7 space-y-5">
+                        <form
+                            className="mt-7 space-y-5"
+                            onSubmit={handleSubmit}
+                        >
                             <div>
                                 <label
                                     htmlFor="contact-name"
@@ -170,6 +286,7 @@ export function ContactPage() {
 
                                     <input
                                         id="contact-name"
+                                        name="name"
                                         type="text"
                                         required
                                         className="w-full rounded-xl border border-[#d9e3ef] bg-[#fbfdff] py-3.5 pr-12 pl-4 text-sm text-[#17233f] outline-none transition focus:border-[#3b86df] focus:ring-2 focus:ring-[#3b86df]/15"
@@ -199,6 +316,7 @@ export function ContactPage() {
 
                                     <input
                                         id="contact-phone"
+                                        name="phone"
                                         type="tel"
                                         inputMode="tel"
                                         dir="ltr"
@@ -224,6 +342,7 @@ export function ContactPage() {
 
                                     <input
                                         id="contact-email"
+                                        name="email"
                                         type="email"
                                         dir="ltr"
                                         className="w-full rounded-xl border border-[#d9e3ef] bg-[#fbfdff] py-3.5 pr-12 pl-4 text-left text-sm text-[#17233f] outline-none transition focus:border-[#3b86df] focus:ring-2 focus:ring-[#3b86df]/15"
@@ -247,6 +366,7 @@ export function ContactPage() {
 
                                 <select
                                     id="contact-subject"
+                                    name="subject"
                                     required
                                     defaultValue=""
                                     className="w-full rounded-xl border border-[#d9e3ef] bg-[#fbfdff] px-4 py-3.5 text-sm text-[#17233f] outline-none transition focus:border-[#3b86df] focus:ring-2 focus:ring-[#3b86df]/15"
@@ -285,6 +405,7 @@ export function ContactPage() {
 
                                 <textarea
                                     id="contact-message"
+                                    name="message"
                                     rows={6}
                                     required
                                     maxLength={250}
@@ -293,8 +414,10 @@ export function ContactPage() {
                             </div>
 
                             <button
-                                type="button"
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2f7ee6] px-5 py-3.5 text-sm font-bold text-white shadow-[0_10px_24px_-12px_rgba(47,126,230,0.75)] transition hover:bg-[#236fda]"
+                                type="submit"
+                                disabled={isSubmitting}
+                                aria-busy={isSubmitting}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#2f7ee6] px-5 py-3.5 text-sm font-bold text-white shadow-[0_10px_24px_-12px_rgba(47,126,230,0.75)] transition hover:bg-[#236fda] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <Send
                                     className="size-4.5"
