@@ -14,6 +14,7 @@ import {
 } from "vitest";
 import { AuthContext } from "./auth/AuthContext";
 import App from "./App";
+import { ToastProvider } from "./components/ui/ToastProvider";
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -262,7 +263,11 @@ describe("App", () => {
     it("renders the standalone contact page at /contact", () => {
         window.history.replaceState({}, "", "/contact");
 
-        render(<App />);
+        render(
+            <ToastProvider>
+                <App />
+            </ToastProvider>,
+        );
 
         expect(
             screen.getByRole("heading", {
