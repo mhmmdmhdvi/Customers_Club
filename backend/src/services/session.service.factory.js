@@ -2,9 +2,21 @@ const crypto = require("node:crypto");
 const { createRegistrationService } = require("./registration.service.factory");
 const { AuthError } = require("../utils/auth-error");
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const USER_FIELDS = { id: true, phone: true, firstName: true, lastName: true,
-  role: true, createdAt: true, updatedAt: true };
+const MEMBER_SESSION_TTL_MS =
+  7 * 24 * 60 * 60 * 1000;
+
+const ADMIN_SESSION_TTL_MS =
+  8 * 60 * 60 * 1000;
+
+function sessionTtlMs(user) {
+  return user.role === "ADMIN"
+    ? ADMIN_SESSION_TTL_MS
+    : MEMBER_SESSION_TTL_MS;
+}
+const USER_FIELDS = {
+  id: true, phone: true, firstName: true, lastName: true,
+  role: true, createdAt: true, updatedAt: true
+};
 const isToken = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const active = (session) => session && session.revokedAt === null && session.expiresAt > new Date();
@@ -21,11 +33,43 @@ function createSessionService(prisma, { tokens }) {
   }
 
   async function issue(tx, user) {
-    const session = await tx.authSession.create({ data: {
-      id: crypto.randomUUID(), userId: user.id,
-      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-    } });
-    return credentials(tx, session, user);
+    const now = new Date();
+
+    if (user.role === "ADMIN") {
+      await tx.authSession.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+          expiresAt: {
+            gt: now,
+          },
+        },
+        data: {
+          revokedAt: now,
+          version: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    const session =
+      await tx.authSession.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          expiresAt: new Date(
+            now.getTime() +
+            sessionTtlMs(user),
+          ),
+        },
+      });
+
+    return credentials(
+      tx,
+      session,
+      user,
+    );
   }
 
   async function register(input) {
@@ -37,7 +81,7 @@ function createSessionService(prisma, { tokens }) {
 
   async function login(input) {
     if (!input || typeof input !== "object" || Array.isArray(input) ||
-        Object.keys(input).some((k) => k !== "verificationToken") || !isToken(input.verificationToken)) {
+      Object.keys(input).some((k) => k !== "verificationToken") || !isToken(input.verificationToken)) {
       throw new AuthError("Invalid or expired verification");
     }
     const tokenHash = digest(input.verificationToken);

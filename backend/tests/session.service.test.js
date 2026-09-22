@@ -46,6 +46,34 @@ test("login consumes proof, issues session, and stores refresh hash only", async
   assert.equal((await service.authenticate(result.accessToken)).user.id, user.id);
 });
 
+test("ADMIN login uses an 8 hour absolute session expiry", async (t) => {
+  const { db, service } = fixture(t);
+
+  db.state.users[0].role = "ADMIN";
+
+  const result = await login(service);
+
+  const expectedExpiry =
+    Date.now() + 8 * 60 * 60 * 1000;
+
+  assert.equal(
+    result.user.role,
+    "ADMIN",
+  );
+
+  assert.equal(
+    db.state.sessions[0].expiresAt.getTime(),
+    expectedExpiry,
+  );
+
+  assert.equal(
+    new Date(
+      result.refreshExpiresAt,
+    ).getTime(),
+    expectedExpiry,
+  );
+});
+
 for (const [label, change] of [
   ["missing proof", (db) => { db.state.proofs.length = 0; }],
   ["REGISTER proof", (db) => { db.state.proofs[0].purpose = "REGISTER"; }],
@@ -217,4 +245,61 @@ test("deleted user and missing session cannot authenticate", async (t) => {
   await assert.rejects(service.authenticate(first.accessToken), { statusCode: 401 });
   db.state.sessions.length = 0;
   await assert.rejects(service.authenticate(first.accessToken), { statusCode: 401 });
+});
+
+test("ADMIN login revokes older active sessions for the same user", async (t) => {
+  const { db, service } = fixture(t);
+
+  db.state.users[0].role = "ADMIN";
+
+  const first = await login(service);
+
+  db.state.proofs.push({
+    id: 2,
+    phone: PHONE,
+    tokenHash: hash("c".repeat(64)),
+    purpose: "LOGIN",
+    usedAt: null,
+    expiresAt: new Date(
+      Date.now() + 300_000,
+    ),
+  });
+
+  const second = await service.login({
+    verificationToken:
+      "c".repeat(64),
+  });
+
+  assert.equal(
+    db.state.sessions.length,
+    2,
+  );
+
+  assert.ok(
+    db.state.sessions[0].revokedAt
+    instanceof Date,
+  );
+
+  assert.equal(
+    db.state.sessions[1].revokedAt,
+    null,
+  );
+
+  await assert.rejects(
+    service.authenticate(
+      first.accessToken,
+    ),
+    {
+      statusCode: 401,
+    },
+  );
+
+  assert.equal(
+    (
+      await service.authenticate(
+        second.accessToken,
+      )
+    ).user.role,
+    "ADMIN",
+  );
 });
