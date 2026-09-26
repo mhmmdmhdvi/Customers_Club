@@ -815,3 +815,553 @@ it("keeps the restoration error when session reset is not confirmed", async () =
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+it("shows the authenticator-code step when ADMIN login requires MFA", async () => {
+    const onAuthenticated = vi.fn();
+
+    const phone = "09123456789";
+    const code = "123456";
+    const verificationToken = "b".repeat(64);
+    const mfaChallengeToken = "c".repeat(64);
+
+    const fetchMock = vi
+        .fn()
+        // Request 1: ask for the SMS OTP.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        // Request 2: verify the SMS OTP.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                nextStep: "LOGIN",
+                authenticated: false,
+                verificationToken,
+                verificationExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        // Request 3: ADMIN first factor requires MFA.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "MFA required",
+                authenticated: false,
+                mfaRequired: true,
+                mfaChallengeToken,
+                mfaExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage({
+        onAuthenticated,
+    });
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const codeInput =
+        await screen.findByRole(
+            "textbox",
+            {
+                name: "کد تأیید",
+            },
+        );
+
+    fireEvent.change(
+        codeInput,
+        {
+            target: {
+                value: code,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید کد",
+        }),
+    );
+
+    expect(
+        await screen.findByRole(
+            "textbox",
+            {
+                name: "کد احراز هویت",
+            },
+        ),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.queryByRole(
+            "heading",
+            {
+                name: "خوش آمدید",
+            },
+        ),
+    ).not.toBeInTheDocument();
+
+    expect(
+        onAuthenticated,
+    ).not.toHaveBeenCalled();
+
+    expect(
+        fetchMock,
+    ).toHaveBeenCalledTimes(3);
+});
+
+it("completes ADMIN login with the authenticator code", async () => {
+    const onAuthenticated = vi.fn();
+
+    const phone = "09123456789";
+    const smsCode = "123456";
+    const mfaCode = "654321";
+    const verificationToken = "b".repeat(64);
+    const mfaChallengeToken = "c".repeat(64);
+
+    const user = {
+        id: 1,
+        phone,
+        firstName: "مدیر",
+        lastName: "سیستم",
+        role: "ADMIN",
+        createdAt: "2026-09-10T08:00:00.000Z",
+    };
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                nextStep: "LOGIN",
+                authenticated: false,
+                verificationToken,
+                verificationExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "MFA required",
+                authenticated: false,
+                mfaRequired: true,
+                mfaChallengeToken,
+                mfaExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Logged in",
+                authenticated: true,
+                user,
+                tokenType: "Bearer",
+                accessToken: "admin.access.token",
+                expiresIn: 900,
+                accessExpiresAt: new Date(
+                    Date.now() + 15 * 60 * 1000,
+                ).toISOString(),
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage({
+        onAuthenticated,
+    });
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const smsInput =
+        await screen.findByRole("textbox", {
+            name: "کد تأیید",
+        });
+
+    fireEvent.change(
+        smsInput,
+        {
+            target: {
+                value: smsCode,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید کد",
+        }),
+    );
+
+    const mfaInput =
+        await screen.findByRole("textbox", {
+            name: "کد احراز هویت",
+        });
+
+    fireEvent.change(
+        mfaInput,
+        {
+            target: {
+                value: mfaCode,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید احراز هویت",
+        }),
+    );
+
+    expect(
+        await screen.findByRole("heading", {
+            name: "خوش آمدید",
+        }),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.getByText("مدیر سیستم"),
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    const [url, options] =
+        fetchMock.mock.calls[3];
+
+    expect(url).toMatch(
+        /\/auth\/login\/mfa$/,
+    );
+
+    expect(options).toEqual(
+        expect.objectContaining({
+            method: "POST",
+            credentials: "include",
+            headers:
+                expect.objectContaining({
+                    "Content-Type":
+                        "application/json",
+                    "X-CSRF-Protection":
+                        "1",
+                }),
+        }),
+    );
+
+    expect(
+        JSON.parse(options.body),
+    ).toEqual({
+        mfaChallengeToken,
+        code: mfaCode,
+    });
+
+    expect(
+        onAuthenticated,
+    ).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the ADMIN on the MFA step when the authenticator code is not 6 digits", async () => {
+    const phone = "09123456789";
+    const smsCode = "123456";
+    const verificationToken = "b".repeat(64);
+    const mfaChallengeToken = "c".repeat(64);
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                nextStep: "LOGIN",
+                authenticated: false,
+                verificationToken,
+                verificationExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "MFA required",
+                authenticated: false,
+                mfaRequired: true,
+                mfaChallengeToken,
+                mfaExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const smsInput =
+        await screen.findByRole("textbox", {
+            name: "کد تأیید",
+        });
+
+    fireEvent.change(smsInput, {
+        target: {
+            value: smsCode,
+        },
+    });
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید کد",
+        }),
+    );
+
+    const mfaInput =
+        await screen.findByRole("textbox", {
+            name: "کد احراز هویت",
+        });
+
+    fireEvent.change(mfaInput, {
+        target: {
+            value: "123",
+        },
+    });
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید احراز هویت",
+        }),
+    );
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "کد احراز هویت باید دقیقاً ۶ رقم باشد.",
+    );
+
+    expect(
+        screen.getByRole("textbox", {
+            name: "کد احراز هویت",
+        }),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.queryByRole("heading", {
+            name: "خوش آمدید",
+        }),
+    ).not.toBeInTheDocument();
+
+    // No /auth/login/mfa request should have been sent.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+});
+
+it("keeps the MFA challenge when the backend rejects the authenticator code", async () => {
+    const phone = "09123456789";
+    const smsCode = "123456";
+    const verificationToken = "b".repeat(64);
+    const mfaChallengeToken = "c".repeat(64);
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                nextStep: "LOGIN",
+                authenticated: false,
+                verificationToken,
+                verificationExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "MFA required",
+                authenticated: false,
+                mfaRequired: true,
+                mfaChallengeToken,
+                mfaExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 401,
+            json: async () => ({
+                message: "Unauthorized",
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const smsInput =
+        await screen.findByRole("textbox", {
+            name: "کد تأیید",
+        });
+
+    fireEvent.change(smsInput, {
+        target: {
+            value: smsCode,
+        },
+    });
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید کد",
+        }),
+    );
+
+    const mfaInput =
+        await screen.findByRole("textbox", {
+            name: "کد احراز هویت",
+        });
+
+    fireEvent.change(mfaInput, {
+        target: {
+            value: "654321",
+        },
+    });
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "تأیید احراز هویت",
+        }),
+    );
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "کد احراز هویت نامعتبر است یا منقضی شده است.",
+    );
+
+    expect(
+        screen.getByRole("textbox", {
+            name: "کد احراز هویت",
+        }),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.queryByRole("heading", {
+            name: "خوش آمدید",
+        }),
+    ).not.toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    expect(
+        JSON.parse(
+            fetchMock.mock.calls[3][1].body,
+        ),
+    ).toEqual({
+        mfaChallengeToken,
+        code: "654321",
+    });
+});

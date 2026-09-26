@@ -46,34 +46,6 @@ test("login consumes proof, issues session, and stores refresh hash only", async
   assert.equal((await service.authenticate(result.accessToken)).user.id, user.id);
 });
 
-test("ADMIN login uses an 8 hour absolute session expiry", async (t) => {
-  const { db, service } = fixture(t);
-
-  db.state.users[0].role = "ADMIN";
-
-  const result = await login(service);
-
-  const expectedExpiry =
-    Date.now() + 8 * 60 * 60 * 1000;
-
-  assert.equal(
-    result.user.role,
-    "ADMIN",
-  );
-
-  assert.equal(
-    db.state.sessions[0].expiresAt.getTime(),
-    expectedExpiry,
-  );
-
-  assert.equal(
-    new Date(
-      result.refreshExpiresAt,
-    ).getTime(),
-    expectedExpiry,
-  );
-});
-
 for (const [label, change] of [
   ["missing proof", (db) => { db.state.proofs.length = 0; }],
   ["REGISTER proof", (db) => { db.state.proofs[0].purpose = "REGISTER"; }],
@@ -247,28 +219,99 @@ test("deleted user and missing session cannot authenticate", async (t) => {
   await assert.rejects(service.authenticate(first.accessToken), { statusCode: 401 });
 });
 
-test("ADMIN login revokes older active sessions for the same user", async (t) => {
-  const { db, service } = fixture(t);
+test("ADMIN MFA completion uses an 8 hour absolute session expiry", async (t) => {
+  const { db, tokens } =
+    fixture(t);
 
-  db.state.users[0].role = "ADMIN";
+  db.state.users[0].role =
+    "ADMIN";
 
-  const first = await login(service);
+  const service =
+    createSessionService(
+      db.prisma,
+      {
+        tokens,
 
-  db.state.proofs.push({
-    id: 2,
-    phone: PHONE,
-    tokenHash: hash("c".repeat(64)),
-    purpose: "LOGIN",
-    usedAt: null,
+        adminMfaService: {
+          complete: async () =>
+            user.id,
+        },
+      },
+    );
+
+  const result =
+    await service.completeAdminMfa({
+      mfaChallengeToken:
+        "d".repeat(64),
+
+      code: "123456",
+    });
+
+  const expectedExpiry =
+    Date.now() +
+    8 * 60 * 60 * 1000;
+
+  assert.equal(
+    result.user.role,
+    "ADMIN",
+  );
+
+  assert.equal(
+    db.state.sessions[0]
+      .expiresAt.getTime(),
+    expectedExpiry,
+  );
+
+  assert.equal(
+    new Date(
+      result.refreshExpiresAt,
+    ).getTime(),
+    expectedExpiry,
+  );
+});
+test("ADMIN MFA completion revokes older active sessions for the same user", async (t) => {
+  const { db, tokens } =
+    fixture(t);
+
+  db.state.users[0].role =
+    "ADMIN";
+
+  const oldSession = {
+    id: crypto.randomUUID(),
+    userId: user.id,
+    createdAt: new Date(),
     expiresAt: new Date(
-      Date.now() + 300_000,
+      Date.now() +
+      60 * 60 * 1000,
     ),
-  });
+    revokedAt: null,
+    version: 0,
+  };
 
-  const second = await service.login({
-    verificationToken:
-      "c".repeat(64),
-  });
+  db.state.sessions.push(
+    oldSession,
+  );
+
+  const service =
+    createSessionService(
+      db.prisma,
+      {
+        tokens,
+
+        adminMfaService: {
+          complete: async () =>
+            user.id,
+        },
+      },
+    );
+
+  const result =
+    await service.completeAdminMfa({
+      mfaChallengeToken:
+        "d".repeat(64),
+
+      code: "123456",
+    });
 
   assert.equal(
     db.state.sessions.length,
@@ -276,30 +319,212 @@ test("ADMIN login revokes older active sessions for the same user", async (t) =>
   );
 
   assert.ok(
-    db.state.sessions[0].revokedAt
-    instanceof Date,
+    db.state.sessions[0]
+      .revokedAt instanceof Date,
   );
 
   assert.equal(
-    db.state.sessions[1].revokedAt,
+    db.state.sessions[1]
+      .revokedAt,
     null,
   );
 
+  assert.equal(
+    (
+      await service.authenticate(
+        result.accessToken,
+      )
+    ).user.role,
+    "ADMIN",
+  );
+});
+test("ADMIN login requires MFA before issuing an authenticated session", async (t) => {
+  const { db, tokens } =
+    fixture(t);
+
+  db.state.users[0].role =
+    "ADMIN";
+
+  const challengeToken =
+    "d".repeat(64);
+
+  const challengeExpiresAt =
+    new Date(
+      Date.now() +
+      5 * 60 * 1000,
+    ).toISOString();
+
+  const mfaCalls = [];
+
+  const service =
+    createSessionService(
+      db.prisma,
+      {
+        tokens,
+
+        adminMfaService: {
+          begin: async (
+            userId,
+            tx,
+          ) => {
+            mfaCalls.push({
+              userId,
+              tx,
+            });
+
+            return {
+              mfaChallengeToken:
+                challengeToken,
+
+              mfaExpiresAt:
+                challengeExpiresAt,
+            };
+          },
+        },
+      },
+    );
+
+  const result =
+    await login(service);
+
+  assert.deepEqual(
+    result,
+    {
+      mfaRequired: true,
+
+      mfaChallengeToken:
+        challengeToken,
+
+      mfaExpiresAt:
+        challengeExpiresAt,
+    },
+  );
+
+  assert.equal(
+    mfaCalls.length,
+    1,
+  );
+
+  assert.equal(
+    mfaCalls[0].userId,
+    user.id,
+  );
+
+  assert.ok(
+    mfaCalls[0].tx,
+  );
+
+  // First factor is consumed.
+  assert.ok(
+    db.state.proofs[0].usedAt
+    instanceof Date,
+  );
+
+  // But no authenticated ADMIN
+  // session exists yet.
+  assert.equal(
+    db.state.sessions.length,
+    0,
+  );
+
+  assert.equal(
+    db.state.refreshTokens.length,
+    0,
+  );
+});
+
+test("ADMIN MFA failure returns 401 without issuing a session", async (t) => {
+  const { db, tokens } =
+    fixture(t);
+
+  db.state.users[0].role =
+    "ADMIN";
+
+  const service =
+    createSessionService(
+      db.prisma,
+      {
+        tokens,
+
+        adminMfaService: {
+          complete: async () =>
+            null,
+        },
+      },
+    );
+
   await assert.rejects(
-    service.authenticate(
-      first.accessToken,
-    ),
+    service.completeAdminMfa({
+      mfaChallengeToken:
+        "d".repeat(64),
+      code: "123456",
+    }),
     {
       statusCode: 401,
     },
   );
 
   assert.equal(
-    (
-      await service.authenticate(
-        second.accessToken,
-      )
-    ).user.role,
-    "ADMIN",
+    db.state.sessions.length,
+    0,
+  );
+
+  assert.equal(
+    db.state.refreshTokens.length,
+    0,
+  );
+});
+
+test("ADMIN MFA failure commits the MFA transaction before returning 401", async () => {
+  const transactionOutcomes = [];
+
+  const prisma = {
+    $transaction: async (callback) => {
+      try {
+        const result =
+          await callback({});
+
+        transactionOutcomes.push(
+          "committed",
+        );
+
+        return result;
+      } catch (error) {
+        transactionOutcomes.push(
+          "rolled-back",
+        );
+
+        throw error;
+      }
+    },
+  };
+
+  const service =
+    createSessionService(
+      prisma,
+      {
+        tokens: {},
+
+        adminMfaService: {
+          complete: async () =>
+            null,
+        },
+      },
+    );
+
+  await assert.rejects(
+    service.completeAdminMfa({
+      mfaChallengeToken:
+        "d".repeat(64),
+      code: "123456",
+    }),
+    {
+      statusCode: 401,
+    },
+  );
+
+  assert.deepEqual(
+    transactionOutcomes,
+    ["committed"],
   );
 });

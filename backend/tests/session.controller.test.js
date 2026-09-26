@@ -239,3 +239,321 @@ test("security event failure does not block successful ADMIN login", async (t) =
     "ADMIN",
   );
 });
+
+test("ADMIN first-factor login returns MFA challenge without creating a browser session", async () => {
+  const res = response();
+
+  const challenge = {
+    mfaRequired: true,
+    mfaChallengeToken:
+      "d".repeat(64),
+    mfaExpiresAt:
+      "2026-09-22T10:00:00.000Z",
+  };
+
+  const api =
+    createSessionController({
+      sessionService: {
+        login: async () =>
+          challenge,
+      },
+      getConfig: () => config,
+    });
+
+  await api.login(
+    {
+      body: {
+        verificationToken:
+          "a".repeat(64),
+      },
+      headers: {},
+    },
+    res,
+  );
+
+  assert.equal(
+    res.code,
+    200,
+  );
+
+  assert.deepEqual(
+    res.body,
+    {
+      message:
+        "MFA required",
+      authenticated: false,
+      mfaRequired: true,
+      mfaChallengeToken:
+        challenge.mfaChallengeToken,
+      mfaExpiresAt:
+        challenge.mfaExpiresAt,
+    },
+  );
+
+  assert.equal(
+    res.cookies.length,
+    0,
+  );
+
+  assert.equal(
+    res.body.accessToken,
+    undefined,
+  );
+});
+
+test("ADMIN MFA completion issues the authenticated browser session", async () => {
+  const res = response();
+
+  const result = grant();
+
+  result.user = {
+    ...result.user,
+    role: "ADMIN",
+  };
+
+  let received;
+
+  const api =
+    createSessionController({
+      sessionService: {
+        completeAdminMfa:
+          async (input) => {
+            received = input;
+            return result;
+          },
+      },
+
+      getConfig: () =>
+        config,
+    });
+
+  const body = {
+    mfaChallengeToken:
+      "d".repeat(64),
+
+    code: "123456",
+  };
+
+  await api.completeAdminMfa(
+    {
+      body,
+      headers: {},
+      requestId:
+        "admin-mfa-complete",
+      originalUrl:
+        "/auth/login/mfa",
+    },
+    res,
+  );
+
+  assert.equal(
+    res.code,
+    200,
+  );
+
+  assert.equal(
+    res.body.authenticated,
+    true,
+  );
+
+  assert.equal(
+    res.body.user.role,
+    "ADMIN",
+  );
+
+  assert.equal(
+    res.body.accessToken,
+    result.accessToken,
+  );
+
+  assert.equal(
+    res.body.refreshToken,
+    undefined,
+  );
+
+  assert.equal(
+    res.cookies[0][1],
+    result.refreshToken,
+  );
+
+  assert.deepEqual(
+    received,
+    body,
+  );
+});
+
+test("successful ADMIN MFA completion records ADMIN_LOGIN", async () => {
+  const res = response();
+
+  const result = grant();
+
+  result.user = {
+    ...result.user,
+    role: "ADMIN",
+  };
+
+  const events = [];
+
+  const api = createSessionController({
+    sessionService: {
+      completeAdminMfa: async () =>
+        result,
+    },
+
+    getConfig: () =>
+      config,
+
+    securityEventService: {
+      record: async (event) => {
+        events.push(event);
+      },
+    },
+  });
+
+  const body = {
+    mfaChallengeToken:
+      "d".repeat(64),
+    code: "123456",
+  };
+
+  await api.completeAdminMfa(
+    {
+      body,
+      headers: {},
+      requestId:
+        "admin-mfa-login",
+      originalUrl:
+        "/auth/login/mfa",
+    },
+    res,
+  );
+
+  assert.equal(
+    res.code,
+    200,
+  );
+
+  assert.deepEqual(
+    events,
+    [
+      {
+        eventType:
+          "ADMIN_LOGIN",
+
+        outcome:
+          "SUCCESS",
+
+        actorUserId:
+          result.user.id,
+
+        requestId:
+          "admin-mfa-login",
+
+        route:
+          "/auth/login/mfa",
+
+        statusCode: 200,
+      },
+    ],
+  );
+
+  const serialized =
+    JSON.stringify(events);
+
+  assert.ok(
+    !serialized.includes(
+      result.user.phone,
+    ),
+  );
+
+  assert.ok(
+    !serialized.includes(
+      result.accessToken,
+    ),
+  );
+
+  assert.ok(
+    !serialized.includes(
+      result.refreshToken,
+    ),
+  );
+
+  assert.ok(
+    !serialized.includes(
+      body.mfaChallengeToken,
+    ),
+  );
+
+  assert.ok(
+    !serialized.includes(
+      body.code,
+    ),
+  );
+});
+
+test("security event failure does not block successful ADMIN MFA completion", async (t) => {
+  t.mock.method(
+    console,
+    "error",
+    () => { },
+  );
+
+  const res = response();
+
+  const result = grant();
+
+  result.user = {
+    ...result.user,
+    role: "ADMIN",
+  };
+
+  const api =
+    createSessionController({
+      sessionService: {
+        completeAdminMfa:
+          async () => result,
+      },
+
+      getConfig: () =>
+        config,
+
+      securityEventService: {
+        record: async () => {
+          throw new Error(
+            "telemetry unavailable",
+          );
+        },
+      },
+    });
+
+  await api.completeAdminMfa(
+    {
+      body: {
+        mfaChallengeToken:
+          "d".repeat(64),
+        code: "123456",
+      },
+      headers: {},
+      requestId:
+        "admin-mfa-telemetry-failure",
+      originalUrl:
+        "/auth/login/mfa",
+    },
+    res,
+  );
+
+  assert.equal(
+    res.code,
+    200,
+  );
+
+  assert.equal(
+    res.body.authenticated,
+    true,
+  );
+
+  assert.equal(
+    res.body.user.role,
+    "ADMIN",
+  );
+});

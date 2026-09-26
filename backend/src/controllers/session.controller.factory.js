@@ -131,6 +131,28 @@ function createSessionController({
 
         if (
           method === "login" &&
+          grant?.mfaRequired === true
+        ) {
+          return res
+            .status(200)
+            .json({
+              message:
+                "MFA required",
+
+              authenticated: false,
+
+              mfaRequired: true,
+
+              mfaChallengeToken:
+                grant.mfaChallengeToken,
+
+              mfaExpiresAt:
+                grant.mfaExpiresAt,
+            });
+        }
+
+        if (
+          method === "login" &&
           grant.user?.role ===
           "ADMIN"
         ) {
@@ -200,6 +222,73 @@ function createSessionController({
     };
   }
 
+  async function completeAdminMfa(
+    req,
+    res,
+  ) {
+    try {
+      const config =
+        getConfig();
+
+      const grant =
+        await sessionService
+          .completeAdminMfa(
+            req.body,
+          );
+
+      if (
+        grant.user?.role ===
+        "ADMIN" &&
+        securityEventService &&
+        typeof securityEventService.record ===
+        "function"
+      ) {
+        try {
+          await securityEventService.record({
+            eventType:
+              "ADMIN_LOGIN",
+
+            outcome:
+              "SUCCESS",
+
+            actorUserId:
+              grant.user.id,
+
+            requestId:
+              req.requestId,
+
+            route:
+              (
+                req.originalUrl ||
+                req.url ||
+                ""
+              ).split("?")[0],
+
+            statusCode: 200,
+          });
+        } catch (error) {
+          console.error(
+            "Failed to record ADMIN_LOGIN security event",
+            error,
+          );
+        }
+      }
+
+      return sendSession(
+        res,
+        grant,
+        config,
+        200,
+        "Logged in",
+      );
+    } catch (error) {
+      return sendFailure(
+        res,
+        error,
+      );
+    }
+  }
+
   async function logout(
     req,
     res,
@@ -263,6 +352,8 @@ function createSessionController({
         200,
         "Logged in",
       ),
+
+    completeAdminMfa,
 
     refresh:
       grantHandler(
