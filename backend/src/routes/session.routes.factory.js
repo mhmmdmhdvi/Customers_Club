@@ -6,6 +6,11 @@ function createSessionRoutes({ controller, sessionService, getConfig }) {
   const sessionRequest = createSessionGuard(getConfig);
   router.post("/register", sessionRequest, controller.register);
   router.post("/login", sessionRequest, controller.login);
+  router.post(
+    "/login/mfa",
+    sessionRequest,
+    controller.completeAdminMfa,
+  );
   router.post("/refresh", sessionRequest, controller.refresh);
   router.post("/logout", sessionRequest, controller.logout);
   router.get("/me", createAuthentication(sessionService), controller.me);

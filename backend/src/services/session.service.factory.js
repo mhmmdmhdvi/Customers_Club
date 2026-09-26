@@ -2,14 +2,32 @@ const crypto = require("node:crypto");
 const { createRegistrationService } = require("./registration.service.factory");
 const { AuthError } = require("../utils/auth-error");
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const USER_FIELDS = { id: true, phone: true, firstName: true, lastName: true,
-  role: true, createdAt: true, updatedAt: true };
+const MEMBER_SESSION_TTL_MS =
+  7 * 24 * 60 * 60 * 1000;
+
+const ADMIN_SESSION_TTL_MS =
+  8 * 60 * 60 * 1000;
+
+function sessionTtlMs(user) {
+  return user.role === "ADMIN"
+    ? ADMIN_SESSION_TTL_MS
+    : MEMBER_SESSION_TTL_MS;
+}
+const USER_FIELDS = {
+  id: true, phone: true, firstName: true, lastName: true,
+  role: true, createdAt: true, updatedAt: true
+};
 const isToken = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const active = (session) => session && session.revokedAt === null && session.expiresAt > new Date();
 
-function createSessionService(prisma, { tokens }) {
+function createSessionService(
+  prisma,
+  {
+    tokens,
+    adminMfaService,
+  },
+) {
   const registration = createRegistrationService(prisma);
 
   async function credentials(tx, session, user) {
@@ -21,11 +39,45 @@ function createSessionService(prisma, { tokens }) {
   }
 
   async function issue(tx, user) {
-    const session = await tx.authSession.create({ data: {
-      id: crypto.randomUUID(), userId: user.id,
-      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-    } });
-    return credentials(tx, session, user);
+    const now = new Date();
+
+    if (user.role === "ADMIN") {
+      await tx.authSession.updateMany({
+        where: {
+          userId: user.id,
+          revokedAt: null,
+          expiresAt: {
+            gt: now,
+          },
+        },
+
+        data: {
+          revokedAt: now,
+          version: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    const session =
+      await tx.authSession.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+
+          expiresAt: new Date(
+            now.getTime() +
+            sessionTtlMs(user),
+          ),
+        },
+      });
+
+    return credentials(
+      tx,
+      session,
+      user,
+    );
   }
 
   async function register(input) {
@@ -36,25 +88,181 @@ function createSessionService(prisma, { tokens }) {
   }
 
   async function login(input) {
-    if (!input || typeof input !== "object" || Array.isArray(input) ||
-        Object.keys(input).some((k) => k !== "verificationToken") || !isToken(input.verificationToken)) {
-      throw new AuthError("Invalid or expired verification");
+    if (
+      !input ||
+      typeof input !== "object" ||
+      Array.isArray(input) ||
+      Object.keys(input).some(
+        (key) =>
+          key !== "verificationToken",
+      ) ||
+      !isToken(
+        input.verificationToken,
+      )
+    ) {
+      throw new AuthError(
+        "Invalid or expired verification",
+      );
     }
-    const tokenHash = digest(input.verificationToken);
-    return prisma.$transaction(async (tx) => {
-      const proof = await tx.phoneVerification.findUnique({ where: { tokenHash } });
-      if (!proof || proof.purpose !== "LOGIN" || proof.usedAt !== null || proof.expiresAt <= new Date()) {
-        throw new AuthError("Invalid or expired verification");
-      }
-      const claimed = await tx.phoneVerification.updateMany({
-        where: { id: proof.id, purpose: "LOGIN", usedAt: null, expiresAt: { gt: new Date() } },
-        data: { usedAt: new Date() },
-      });
-      if (claimed.count !== 1) throw new AuthError("Invalid or expired verification");
-      const user = await tx.user.findUnique({ where: { phone: proof.phone }, select: USER_FIELDS });
-      if (!user) throw new AuthError("Invalid or expired verification");
-      return issue(tx, user);
-    });
+
+    const tokenHash =
+      digest(
+        input.verificationToken,
+      );
+
+    return prisma.$transaction(
+      async (tx) => {
+        const proof =
+          await tx.phoneVerification.findUnique({
+            where: {
+              tokenHash,
+            },
+          });
+
+        if (
+          !proof ||
+          proof.purpose !== "LOGIN" ||
+          proof.usedAt !== null ||
+          proof.expiresAt <= new Date()
+        ) {
+          throw new AuthError(
+            "Invalid or expired verification",
+          );
+        }
+
+        const claimed =
+          await tx.phoneVerification.updateMany({
+            where: {
+              id: proof.id,
+              purpose: "LOGIN",
+              usedAt: null,
+              expiresAt: {
+                gt: new Date(),
+              },
+            },
+
+            data: {
+              usedAt: new Date(),
+            },
+          });
+
+        if (claimed.count !== 1) {
+          throw new AuthError(
+            "Invalid or expired verification",
+          );
+        }
+
+        const user =
+          await tx.user.findUnique({
+            where: {
+              phone: proof.phone,
+            },
+
+            select: USER_FIELDS,
+          });
+
+        if (!user) {
+          throw new AuthError(
+            "Invalid or expired verification",
+          );
+        }
+
+        if (user.role === "ADMIN") {
+          if (
+            !adminMfaService ||
+            typeof adminMfaService.begin !==
+            "function"
+          ) {
+            throw new Error(
+              "Admin MFA service unavailable",
+            );
+          }
+
+          const challenge =
+            await adminMfaService.begin(
+              user.id,
+              tx,
+            );
+
+          return {
+            mfaRequired: true,
+            ...challenge,
+          };
+        }
+
+        return issue(
+          tx,
+          user,
+        );
+      },
+    );
+  }
+
+  async function completeAdminMfa(input) {
+    if (
+      !adminMfaService ||
+      typeof adminMfaService.complete !==
+      "function"
+    ) {
+      throw new Error(
+        "Admin MFA service unavailable",
+      );
+    }
+
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          const userId =
+            await adminMfaService.complete(
+              input,
+              tx,
+            );
+
+          // Invalid MFA code:
+          // let the transaction COMMIT
+          // the failed-attempt increment.
+          if (userId === null) {
+            return null;
+          }
+
+          if (
+            !Number.isSafeInteger(
+              userId,
+            ) ||
+            userId < 1
+          ) {
+            throw new AuthError();
+          }
+
+          const user =
+            await tx.user.findUnique({
+              where: {
+                id: userId,
+              },
+
+              select: USER_FIELDS,
+            });
+
+          if (
+            !user ||
+            user.role !== "ADMIN"
+          ) {
+            throw new AuthError();
+          }
+
+          return issue(
+            tx,
+            user,
+          );
+        },
+      );
+
+    // Transaction has committed at this point.
+    if (result === null) {
+      throw new AuthError();
+    }
+
+    return result;
   }
 
   async function revoke(tx, id) {
@@ -122,6 +330,13 @@ function createSessionService(prisma, { tokens }) {
     return { user, sessionId: session.id };
   }
 
-  return { register, login, refresh, logout, authenticate };
+  return {
+    register,
+    login,
+    completeAdminMfa,
+    refresh,
+    logout,
+    authenticate,
+  };
 }
 module.exports = { createSessionService };

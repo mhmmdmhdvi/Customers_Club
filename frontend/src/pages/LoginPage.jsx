@@ -17,6 +17,8 @@ export function LoginPage({
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
+    const [mfaChallenge, setMfaChallenge] = useState(null);
+    const [mfaCode, setMfaCode] = useState("");
     const {
         session,
         authStatus,
@@ -130,11 +132,22 @@ export function LoginPage({
                 setCode("");
 
                 try {
-                    const nextSession = await loginWithProof(
+                    const loginResult = await loginWithProof(
                         data.verificationToken,
                     );
 
-                    establishSession(nextSession);
+                    if (loginResult.mfaRequired === true) {
+                        setMfaChallenge({
+                            token: loginResult.mfaChallengeToken,
+                            expiresAt: loginResult.mfaExpiresAt,
+                        });
+
+                        setVerification(null);
+                        setStep("mfa");
+                        return;
+                    }
+
+                    establishSession(loginResult);
                     setVerification(null);
                     onAuthenticated();
                 } catch {
@@ -275,7 +288,99 @@ export function LoginPage({
 
         const data = await response.json();
 
+        if (
+            data?.authenticated === false &&
+            data?.mfaRequired === true &&
+            typeof data?.mfaChallengeToken === "string" &&
+            /^[a-f0-9]{64}$/.test(data.mfaChallengeToken) &&
+            Number.isFinite(Date.parse(data?.mfaExpiresAt))
+        ) {
+            return {
+                mfaRequired: true,
+                mfaChallengeToken: data.mfaChallengeToken,
+                mfaExpiresAt: data.mfaExpiresAt,
+            };
+        }
+
         return parseAuthenticatedSession(data);
+    }
+
+    async function handleCompleteMfa(event) {
+        event.preventDefault();
+
+        if (isLoading) return;
+
+        setError("");
+
+        const enteredMfaCode =
+            mfaCode.trim();
+
+        if (!/^\d{6}$/.test(enteredMfaCode)) {
+            setError(
+                "کد احراز هویت باید دقیقاً ۶ رقم باشد.",
+            );
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/auth/login/mfa`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Protection": "1",
+                    },
+                    body: JSON.stringify({
+                        mfaChallengeToken:
+                            mfaChallenge.token,
+                        code: enteredMfaCode,
+                    }),
+                },
+            );
+
+            if (!response.ok) {
+                if (
+                    response.status === 400 ||
+                    response.status === 401
+                ) {
+                    setError(
+                        "کد احراز هویت نامعتبر است یا منقضی شده است.",
+                    );
+                    return;
+                }
+
+                throw new Error(
+                    "MFA request failed",
+                );
+            }
+
+            const data =
+                await response.json();
+
+            const nextSession =
+                parseAuthenticatedSession(
+                    data,
+                );
+
+            establishSession(
+                nextSession,
+            );
+
+            setMfaChallenge(null);
+            setMfaCode("");
+
+            onAuthenticated();
+        } catch {
+            setError(
+                "احراز هویت کامل نشد. دوباره تلاش کنید.",
+            );
+        } finally {
+            setIsLoading(false);
+        }
     }
 
     async function handleResetSession() {
@@ -503,7 +608,7 @@ export function LoginPage({
                             </form>
                         ) : (
                             <div className="mt-8">
-                                {!verification && !session && (
+                                {step === "code" && !verification && !session && (
                                     <form onSubmit={handleVerifyCode} noValidate>
                                         <p className="text-sm leading-7 text-muted-foreground">
                                             کد تأیید به شماره موبایل شما ارسال شد.
@@ -550,6 +655,65 @@ export function LoginPage({
                                                 className="rounded-full bg-primary px-10 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                                             >
                                                 {isLoading ? "در حال بررسی..." : "تأیید کد"}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {step === "mfa" && mfaChallenge && !session && (
+                                    <form
+                                        aria-label="احراز هویت مدیر"
+                                        onSubmit={handleCompleteMfa}
+                                        noValidate
+                                    >
+                                        <p className="text-sm leading-7 text-muted-foreground">
+                                            کد ۶ رقمی برنامه احراز هویت خود را وارد کنید.
+                                        </p>
+
+                                        <label
+                                            htmlFor="admin-mfa-code"
+                                            className="mt-6 mb-3 block text-sm font-semibold text-foreground"
+                                        >
+                                            کد احراز هویت
+                                        </label>
+
+                                        <input
+                                            id="admin-mfa-code"
+                                            name="mfaCode"
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoComplete="one-time-code"
+                                            dir="ltr"
+                                            value={mfaCode}
+                                            onChange={(event) =>
+                                                setMfaCode(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={isLoading}
+                                            maxLength={6}
+                                            placeholder="123456"
+                                            className="w-full rounded-lg border border-border-strong bg-background px-4 py-3 text-left text-base tracking-[0.3em] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                        />
+
+                                        {error && (
+                                            <p
+                                                role="alert"
+                                                className="mt-4 text-sm text-red-600"
+                                            >
+                                                {error}
+                                            </p>
+                                        )}
+
+                                        <div className="mt-7 flex justify-center">
+                                            <button
+                                                type="submit"
+                                                disabled={isLoading}
+                                                className="rounded-full bg-primary px-10 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                {isLoading
+                                                    ? "در حال بررسی..."
+                                                    : "تأیید احراز هویت"}
                                             </button>
                                         </div>
                                     </form>
