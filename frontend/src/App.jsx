@@ -11,6 +11,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { useState } from "react";
 import { ContactPage } from "./pages/ContactPage";
+import { AdminPage } from "./pages/AdminPage";
 
 function App() {
   useReveal();
@@ -35,6 +36,10 @@ function App() {
   const isContactPage =
     pathname === "/contact" ||
     pathname === "/contact/";
+
+  const isAdminPage =
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/");
 
   if (isLoginPage) {
     return (
@@ -61,6 +66,20 @@ function App() {
 
   if (isContactPage) {
     return <ContactPage />;
+  }
+
+  if (isAdminPage) {
+    return (
+      <AdminPage
+        pathname={pathname}
+        onRequireLogin={() =>
+          navigate("/login")
+        }
+        onRequireMemberArea={() =>
+          navigate("/dashboard")
+        }
+      />
+    );
   }
 
   return (
