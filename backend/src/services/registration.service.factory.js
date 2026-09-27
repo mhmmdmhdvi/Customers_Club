@@ -2,13 +2,33 @@ const crypto = require("node:crypto");
 const { createOtpService } = require("./otp.service.factory");
 const { normalizePhone, isValidIranianPhone } = require("../utils/phone");
 const { RegistrationError } = require("../utils/registration-error");
-
+const {
+  isValidPastJalaliDate,
+} = require(
+  "../utils/jalali-date",
+);
 const VERIFICATION_TTL_MS = 5 * 60 * 1000;
 const INVALID_PROOF = "Invalid or expired verification";
-const REGISTER_FIELDS = new Set(["verificationToken", "firstName", "lastName"]);
+const REGISTER_FIELDS =
+  new Set([
+    "verificationToken",
+    "firstName",
+    "lastName",
+    "birthYear",
+    "birthMonth",
+    "birthDay",
+  ]);
 const USER_FIELDS = {
-  id: true, phone: true, firstName: true, lastName: true,
-  role: true, createdAt: true, updatedAt: true,
+  id: true,
+  phone: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  birthYear: true,
+  birthMonth: true,
+  birthDay: true,
+  createdAt: true,
+  updatedAt: true,
 };
 
 function hashToken(token) {
@@ -36,10 +56,44 @@ function parseRegistration(input) {
   if (typeof input.verificationToken !== "string" || !/^[a-f0-9]{64}$/.test(input.verificationToken)) {
     throw new RegistrationError(INVALID_PROOF);
   }
+  if (
+    !Number.isInteger(input.birthYear) ||
+    !Number.isInteger(input.birthMonth) ||
+    !Number.isInteger(input.birthDay)
+  ) {
+    throw new RegistrationError(
+      "Invalid birth date",
+    );
+  }
+  if (
+    !isValidPastJalaliDate(
+      input.birthYear,
+      input.birthMonth,
+      input.birthDay,
+    )
+  ) {
+    throw new RegistrationError(
+      "Invalid birth date",
+    );
+  }
   return {
-    tokenHash: hashToken(input.verificationToken),
-    firstName: normalizeName(input.firstName, "First name"),
-    lastName: normalizeName(input.lastName, "Last name"),
+    tokenHash: hashToken(
+      input.verificationToken,
+    ),
+    firstName: normalizeName(
+      input.firstName,
+      "First name",
+    ),
+    lastName: normalizeName(
+      input.lastName,
+      "Last name",
+    ),
+    birthYear:
+      input.birthYear,
+    birthMonth:
+      input.birthMonth,
+    birthDay:
+      input.birthDay,
   };
 }
 
@@ -72,7 +126,14 @@ function createRegistrationService(prisma, { otpOptions } = {}) {
   }
 
   async function register(input, transaction = null) {
-    const { tokenHash, firstName, lastName } = parseRegistration(input);
+    const {
+      tokenHash,
+      firstName,
+      lastName,
+      birthYear,
+      birthMonth,
+      birthDay,
+    } = parseRegistration(input);
     try {
       const createMember = async (tx) => {
         const proof = await tx.phoneVerification.findUnique({ where: { tokenHash } });
@@ -90,7 +151,17 @@ function createRegistrationService(prisma, { otpOptions } = {}) {
         if (existing) throw new RegistrationError("Phone already registered", 409);
 
         return tx.user.create({
-          data: { phone: proof.phone, firstName, lastName, role: "MEMBER" },
+          data: {
+            phone:
+              proof.phone,
+            firstName,
+            lastName,
+            role:
+              "MEMBER",
+            birthYear,
+            birthMonth,
+            birthDay,
+          },
           select: USER_FIELDS,
         });
       };

@@ -3,7 +3,11 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const { createRegistrationService } = require("../src/services/registration.service.factory");
 const { createRegistrationDb } = require("./helpers/registration-db");
-
+const {
+  getTehranJalaliDate,
+} = require(
+  "../src/utils/jalali-date",
+);
 const PHONE = "09121234567";
 const CODE = "123456";
 const NOW = 1_000_000;
@@ -19,11 +23,23 @@ function fixture(t, options = {}) {
   // Fixed synthetic peer; no real process environment or IP is used in these tests.
   return { db, service: { ...service, verifyPhone: (phone, code) => service.verifyPhone(phone, code, "192.0.2.1") } };
 }
-const input = (verificationToken, extra = {}) => ({ verificationToken, firstName: " خسرو ", lastName: " وفایی ", ...extra });
+
+const input = (
+  verificationToken,
+  extra = {},
+) => ({
+  verificationToken,
+  firstName: " خسرو ",
+  lastName: " وفایی ",
+  birthYear: 1300,
+  birthMonth: 1,
+  birthDay: 1,
+  ...extra,
+});
 
 test("verifyPhone issues a hashed five-minute registration proof after OTP success", async (t) => {
   const { db, service } = fixture(t);
-  const logs = t.mock.method(console, "log", () => {});
+  const logs = t.mock.method(console, "log", () => { });
   const result = await service.verifyPhone("+989121234567", CODE);
   assert.equal(result.nextStep, "REGISTER");
   assert.equal(result.authenticated, false);
@@ -221,4 +237,211 @@ test("two registration submissions create one member in the serialized transacti
   assert.equal(result.filter((r) => r.status === "fulfilled").length, 1);
   assert.equal(result.filter((r) => r.status === "rejected").length, 1);
   assert.equal(db.state.users.length, 1);
+});
+
+test("register requires a birthday without consuming proof", async (t) => {
+  const { db, service } =
+    fixture(t);
+
+  const proof =
+    await service.verifyPhone(
+      PHONE,
+      CODE,
+    );
+
+  await assert.rejects(
+    service.register({
+      verificationToken:
+        proof.verificationToken,
+      firstName: " خسرو ",
+      lastName: " وفایی ",
+    }),
+    {
+      message:
+        "Invalid birth date",
+    },
+  );
+
+  assert.equal(
+    db.state.proofs[0].usedAt,
+    null,
+  );
+
+  assert.equal(
+    db.state.users.length,
+    0,
+  );
+});
+
+test("register rejects non-integer birthday fields without consuming proof", async (t) => {
+  const { db, service } =
+    fixture(t);
+
+  const proof =
+    await service.verifyPhone(
+      PHONE,
+      CODE,
+    );
+
+  await assert.rejects(
+    service.register(
+      input(
+        proof.verificationToken,
+        {
+          birthYear: "1300",
+        },
+      ),
+    ),
+    {
+      message:
+        "Invalid birth date",
+    },
+  );
+
+  assert.equal(
+    db.state.proofs[0].usedAt,
+    null,
+  );
+
+  assert.equal(
+    db.state.users.length,
+    0,
+  );
+});
+
+test("register rejects an invalid Jalali birthday without consuming proof", async (t) => {
+  const { db, service } =
+    fixture(t);
+
+  const proof =
+    await service.verifyPhone(
+      PHONE,
+      CODE,
+    );
+
+  await assert.rejects(
+    service.register(
+      input(
+        proof.verificationToken,
+        {
+          birthYear: 1300,
+          birthMonth: 7,
+          birthDay: 31,
+        },
+      ),
+    ),
+    {
+      message:
+        "Invalid birth date",
+    },
+  );
+
+  assert.equal(
+    db.state.proofs[0].usedAt,
+    null,
+  );
+
+  assert.equal(
+    db.state.users.length,
+    0,
+  );
+});
+
+test("register persists the valid Jalali birthday", async (t) => {
+  const { db, service } =
+    fixture(t);
+
+  const proof =
+    await service.verifyPhone(
+      PHONE,
+      CODE,
+    );
+
+  const result =
+    await service.register(
+      input(
+        proof.verificationToken,
+        {
+          birthYear: 1300,
+          birthMonth: 7,
+          birthDay: 12,
+        },
+      ),
+    );
+
+  assert.equal(
+    result.birthYear,
+    1300,
+  );
+
+  assert.equal(
+    result.birthMonth,
+    7,
+  );
+
+  assert.equal(
+    result.birthDay,
+    12,
+  );
+
+  assert.equal(
+    db.state.users[0].birthYear,
+    1300,
+  );
+
+  assert.equal(
+    db.state.users[0].birthMonth,
+    7,
+  );
+
+  assert.equal(
+    db.state.users[0].birthDay,
+    12,
+  );
+});
+
+test("register rejects today's Jalali date as a birthday", async (t) => {
+  const { db, service } =
+    fixture(t);
+
+  const proof =
+    await service.verifyPhone(
+      PHONE,
+      CODE,
+    );
+
+  const today =
+    getTehranJalaliDate(
+      new Date(NOW),
+    );
+
+  await assert.rejects(
+    service.register(
+      input(
+        proof.verificationToken,
+        {
+          birthYear:
+            today.year,
+          birthMonth:
+            today.month,
+          birthDay:
+            today.day,
+        },
+      ),
+    ),
+    {
+      message:
+        "Invalid birth date",
+    },
+  );
+
+  assert.equal(
+    db.state.proofs[0].usedAt,
+    null,
+  );
+
+  assert.equal(
+    db.state.users.length,
+    0,
+  );
 });

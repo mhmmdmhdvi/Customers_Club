@@ -3,18 +3,41 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const { createSessionService } = require("../src/services/session.service.factory");
 const { createSessionDb } = require("./helpers/session-db");
-
+const NOW =
+  Date.parse(
+    "2026-09-27T12:00:00.000Z",
+  );
 const PHONE = "09121234567";
 const PROOF = "a".repeat(64);
 const hash = (v) => crypto.createHash("sha256").update(v).digest("hex");
-const user = { id: 1, phone: PHONE, firstName: "A", lastName: "B", role: "MEMBER" };
-const details = { verificationToken: PROOF, firstName: "خسرو", lastName: "وفایی" };
+const user = {
+  id: 1,
+  phone: PHONE,
+  firstName: "A",
+  lastName: "B",
+  role: "MEMBER",
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+};
+
+const details = {
+  verificationToken: PROOF,
+  firstName: "خسرو",
+  lastName: "وفایی",
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+};
 
 function fixture(t, purpose = "LOGIN") {
-  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  t.mock.timers.enable({
+    apis: ["Date"],
+    now: NOW,
+  });
   const db = createSessionDb({
     users: purpose === "REGISTER" ? [] : [user],
-    proofs: [{ id: 1, phone: PHONE, tokenHash: hash(PROOF), purpose, usedAt: null, expiresAt: new Date(1_300_000) }],
+    proofs: [{ id: 1, phone: PHONE, tokenHash: hash(PROOF), purpose, usedAt: null, expiresAt: new Date(NOW + 300_000) }],
   });
   const issued = new Map();
   const tokens = {
@@ -526,5 +549,71 @@ test("ADMIN MFA failure commits the MFA transaction before returning 401", async
   assert.deepEqual(
     transactionOutcomes,
     ["committed"],
+  );
+});
+
+test("MEMBER birthday survives login refresh and authenticate", async (t) => {
+  const { service } =
+    fixture(t);
+
+  const first =
+    await login(service);
+
+  assert.deepEqual(
+    {
+      birthYear:
+        first.user.birthYear,
+      birthMonth:
+        first.user.birthMonth,
+      birthDay:
+        first.user.birthDay,
+    },
+    {
+      birthYear: 1375,
+      birthMonth: 7,
+      birthDay: 12,
+    },
+  );
+
+  const authenticated =
+    await service.authenticate(
+      first.accessToken,
+    );
+
+  assert.deepEqual(
+    {
+      birthYear:
+        authenticated.user.birthYear,
+      birthMonth:
+        authenticated.user.birthMonth,
+      birthDay:
+        authenticated.user.birthDay,
+    },
+    {
+      birthYear: 1375,
+      birthMonth: 7,
+      birthDay: 12,
+    },
+  );
+
+  const refreshed =
+    await service.refresh(
+      first.refreshToken,
+    );
+
+  assert.deepEqual(
+    {
+      birthYear:
+        refreshed.user.birthYear,
+      birthMonth:
+        refreshed.user.birthMonth,
+      birthDay:
+        refreshed.user.birthDay,
+    },
+    {
+      birthYear: 1375,
+      birthMonth: 7,
+      birthDay: 12,
+    },
   );
 });

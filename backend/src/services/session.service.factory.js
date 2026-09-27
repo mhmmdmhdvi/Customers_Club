@@ -14,8 +14,16 @@ function sessionTtlMs(user) {
     : MEMBER_SESSION_TTL_MS;
 }
 const USER_FIELDS = {
-  id: true, phone: true, firstName: true, lastName: true,
-  role: true, createdAt: true, updatedAt: true
+  id: true,
+  phone: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  birthYear: true,
+  birthMonth: true,
+  birthDay: true,
+  createdAt: true,
+  updatedAt: true,
 };
 const isToken = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
