@@ -25,6 +25,7 @@ The feature must:
 ### Included
 
 - required birthday during new MEMBER registration
+- a single ready-made Persian/Jalali calendar picker in the registration UI
 - Jalali birth-year, birth-month, and birth-day storage
 - backend Jalali validation
 - member dashboard birthday display
@@ -131,19 +132,51 @@ There is no minimum-age requirement.
 
 Validation will live in a focused reusable module rather than directly inside a controller.
 
+The frontend date picker improves usability, but browser input can be bypassed, so backend validation remains mandatory.
+
 ---
 
-## 7. Registration UI
+## 7. Registration Birthday Picker
 
-The registration form will contain three controls:
+Registration will use one clear Jalali date-picker field rather than three separate year/month/day controls.
 
-- `سال`
-- `ماه`
-- `روز`
+The field will use `react-multi-date-picker` with its Persian/Solar Hijri calendar and Farsi locale.
 
-The controls will match the existing Persian RTL interface.
+### Visible field
 
-The frontend will send numeric values:
+The registration form will show:
+
+```text
+تاریخ تولد
+[  انتخاب تاریخ تولد                 📅 ]
+```
+
+Requirements:
+
+- full-width box matching the existing registration inputs
+- clear label: `تاریخ تولد`
+- placeholder: `انتخاب تاریخ تولد`
+- visible calendar icon
+- clicking/tapping anywhere on the field opens the calendar
+- manual free-form typing is disabled
+- selected value is shown in a clear Persian Jalali format
+- RTL-friendly calendar position
+
+### Calendar behavior
+
+The calendar must:
+
+- use the Persian/Solar Hijri calendar
+- use the Farsi locale
+- keep both month and year pickers enabled
+- make it practical to jump directly to an older birth year rather than clicking backward month-by-month
+- prevent selection of future dates in the UI where practical
+- remain usable on narrow/mobile screens
+- close after a single date is selected
+
+The date-picker library is responsible for calendar presentation and normal Jalali month/day behavior in the browser. The application must not reimplement the first-six-months/31-days rule in React.
+
+When the user selects a date, the frontend extracts and sends numeric values:
 
 ```js
 {
@@ -153,7 +186,7 @@ The frontend will send numeric values:
 }
 ```
 
-Incomplete or obviously invalid input will be rejected before submission, while the backend remains the final validation boundary.
+The backend remains the final authority for date validity and whether the selected date is in the past.
 
 ---
 
@@ -276,14 +309,6 @@ node scripts/process-birthdays.js
 ```
 
 Tests will use an injectable clock so we can simulate any date without waiting for a real birthday.
-
-For example, automated tests can simulate:
-
-```text
-12 Mehr 1405
-```
-
-even if today's real date is different.
 
 The application must not add:
 
@@ -458,7 +483,18 @@ Test:
 - future birthday
 - valid historical birthday
 
-### Registration
+### Registration UI
+
+Test:
+
+- one clearly labelled `تاریخ تولد` field appears after OTP verification for a new member
+- placeholder is `انتخاب تاریخ تولد`
+- calendar input is not free-form editable
+- selected Jalali date produces numeric year/month/day in the registration request
+- missing birthday prevents registration
+- existing MEMBER login and ADMIN MFA flows remain unchanged
+
+### Registration backend
 
 Test:
 
@@ -537,12 +573,13 @@ Prisma reports database schema up to date
 
 Manual verification:
 
-1. register a MEMBER with a Jalali birthday
-2. see that birthday on the member dashboard
-3. see it in Admin Users
-4. run the processor using a simulated matching date
-5. confirm one delivery ledger record is created
-6. run it again and confirm no duplicate annual delivery is created
+1. register a MEMBER using the Jalali calendar picker
+2. confirm the picker is easy to open and the year/month can be changed quickly
+3. see the selected birthday on the member dashboard
+4. see it in Admin Users
+5. run the processor using a simulated matching date
+6. confirm one delivery ledger record is created
+7. run it again and confirm no duplicate annual delivery is created
 
 ---
 
@@ -551,6 +588,8 @@ Manual verification:
 The feature is complete when:
 
 - MEMBER registration requires a valid past Jalali birthday
+- registration uses one clear ready-made Persian/Jalali calendar picker
+- users can navigate to their birth year/month without stepping backward month-by-month
 - birthday is stored as Jalali year/month/day
 - invalid Jalali dates cannot be registered
 - member dashboard displays the birthday

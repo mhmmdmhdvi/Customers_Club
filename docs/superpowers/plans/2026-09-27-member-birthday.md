@@ -6,13 +6,14 @@
 
 **Architecture:** Store `birthYear`, `birthMonth`, and `birthDay` directly on `User`; keep Jalali validation/date conversion in a focused backend utility; carry birthday fields through existing authenticated-session responses. Add a `BirthdaySmsDelivery` ledger with a unique `(userId, jalaliYear)` claim, a FarazSMS birthday adapter, and a scheduler-independent one-shot processor. The Node web server never schedules birthday work.
 
-**Tech Stack:** Node.js/CommonJS, Express 5, PostgreSQL 18, Prisma 7.10.0, React 19/JSX, Vite 8, Tailwind 4, Node test runner, Vitest/RTL, FarazSMS pattern API, `jalaali-js` (backend runtime dependency).
+**Tech Stack:** Node.js/CommonJS, Express 5, PostgreSQL 18, Prisma 7.10.0, React 19/JSX, Vite 8, Tailwind 4, Node test runner, Vitest/RTL, FarazSMS pattern API, `jalaali-js` (backend runtime dependency), `react-multi-date-picker` (frontend Persian/Jalali picker).
 
 **Spec:** `docs/superpowers/specs/2026-09-27-member-birthday-design.md`
 
 ## Global Constraints
 
 - MEMBER registration requires a valid past Jalali `birthYear`, `birthMonth`, and `birthDay`.
+- Registration uses one prominent ready-made Persian/Jalali date-picker field, not separate hand-built day/month controls.
 - No minimum age.
 - Birthday matching uses `Asia/Tehran`, never the host machine's implicit timezone.
 - ADMIN accounts are excluded from birthday SMS delivery.
@@ -50,6 +51,9 @@
 - Create `backend/prisma/migrations/<timestamp>_add_member_birthday/migration.sql`.
 
 ### Frontend registration/session/display
+- Modify `frontend/package.json` and frontend lockfile — add `react-multi-date-picker`.
+- Create `frontend/src/components/BirthdayDatePicker.jsx` — focused Persian/Jalali picker wrapper and custom visible input.
+- Create `frontend/src/components/BirthdayDatePicker.test.jsx`.
 - Modify `frontend/src/pages/LoginPage.jsx`.
 - Modify `frontend/src/pages/LoginPage.test.jsx`.
 - Verify/modify `frontend/src/auth/sessionResponse.js` only if its parser strips unknown user fields; pin with its existing test file.
@@ -248,9 +252,13 @@ git commit -m "feat: require birthday during member registration"
 
 ---
 
-### Task 3: Registration UI and Frontend Session Compatibility
+### Task 3: Ready-Made Jalali Birthday Picker and Registration UI
 
 **Files:**
+- Modify: `frontend/package.json`
+- Modify: frontend lockfile
+- Create: `frontend/src/components/BirthdayDatePicker.jsx`
+- Create: `frontend/src/components/BirthdayDatePicker.test.jsx`
 - Modify: `frontend/src/pages/LoginPage.jsx`
 - Modify: `frontend/src/pages/LoginPage.test.jsx`
 - Verify/modify: `frontend/src/auth/sessionResponse.js`
@@ -258,23 +266,102 @@ git commit -m "feat: require birthday during member registration"
 
 **Interfaces:**
 - Consumes backend registration contract from Task 2.
-- Produces JSON request body with numeric `birthYear`, `birthMonth`, `birthDay`.
+- Uses `react-multi-date-picker` with Persian/Solar Hijri calendar and Farsi locale.
+- Produces `onChange(null | { birthYear, birthMonth, birthDay })`.
+- Registration sends numeric `birthYear`, `birthMonth`, `birthDay`.
 
-- [ ] **Step 1: Write RED UI test for the three birthday controls**
+- [ ] **Step 1: Install the frontend date-picker dependency**
 
-After OTP verification returns `REGISTER`, assert the form exposes controls labelled:
+From `frontend`:
 
-```text
-سال
-ماه
-روز
+```powershell
+npm install react-multi-date-picker
 ```
 
-Use a numeric input for year and selects for month/day.
+Expected: frontend dependency files change; backend dependency files do not.
 
-- [ ] **Step 2: Write RED request-body test**
+- [ ] **Step 2: Write the RED component tests for the visible birthday field**
 
-Extend the registration-success test so the third request body equals:
+Create `BirthdayDatePicker.test.jsx` and assert:
+- one control is clearly labelled `تاریخ تولد`,
+- placeholder text is `انتخاب تاریخ تولد`,
+- the visible field is full-width/read-only rather than a free-form birthday text box,
+- a calendar icon is present,
+- activating the field opens the calendar.
+
+Do not test internal library implementation details.
+
+- [ ] **Step 3: Run the focused component test**
+
+```powershell
+npm test -- BirthdayDatePicker.test.jsx
+```
+
+Expected: RED because `BirthdayDatePicker.jsx` does not exist.
+
+- [ ] **Step 4: Implement `BirthdayDatePicker`**
+
+Use:
+- `DatePicker` from `react-multi-date-picker`,
+- Persian/Solar Hijri calendar,
+- `persian_fa` locale,
+- `calendarPosition="bottom-right"`,
+- `editable={false}`,
+- single-date mode,
+- month picker enabled,
+- year picker enabled,
+- no manual hand-built 31/30/Esfand logic.
+
+Render a custom input/button-like field matching the existing registration form:
+- label `تاریخ تولد`,
+- placeholder `انتخاب تاریخ تولد`,
+- calendar icon,
+- click/tap anywhere opens the picker,
+- selected value displayed clearly in Persian,
+- suitable width/touch target on mobile.
+
+The year/month controls must remain directly usable so a member can jump to an old birth year instead of paging backward month-by-month.
+
+`onChange` emits:
+
+```js
+{
+  birthYear: date.year,
+  birthMonth: date.month.number,
+  birthDay: date.day,
+}
+```
+
+or `null` when cleared.
+
+- [ ] **Step 5: Add the selected-date RED test**
+
+Select a known Jalali date through the component and assert:
+
+```js
+onChange({
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+})
+```
+
+Also assert a future date is not selectable through the UI's configured max-date behavior. Backend validation remains authoritative.
+
+- [ ] **Step 6: Verify the picker component GREEN**
+
+```powershell
+npm test -- BirthdayDatePicker.test.jsx
+```
+
+Expected: all picker tests pass.
+
+- [ ] **Step 7: Write RED LoginPage integration tests**
+
+After OTP verification returns `REGISTER`, assert:
+- the `تاریخ تولد` picker is visible,
+- registration without selecting a birthday does not call `/auth/register` and shows `تاریخ تولد را انتخاب کنید.`,
+- after selecting `۱۲ مهر ۱۳۷۵`, the request body is exactly:
 
 ```js
 {
@@ -287,59 +374,35 @@ Extend the registration-success test so the third request body equals:
 }
 ```
 
-- [ ] **Step 3: Write RED incomplete-input test**
+- [ ] **Step 8: Integrate the picker into `LoginPage`**
 
-Submitting with any missing birthday component must not call `/auth/register` and must show:
+Keep birthday state as either `null` or the numeric component object from `BirthdayDatePicker`.
 
-```text
-تاریخ تولد را کامل وارد کنید.
-```
+Reset it after successful registration and when the login/session form is reset.
 
-- [ ] **Step 4: Run LoginPage tests**
+Do not add separate day/month/year calculations to `LoginPage`.
 
-From `frontend`:
-
-```powershell
-npm test -- LoginPage.test.jsx
-```
-
-Expected: RED on the new birthday cases; existing OTP/MFA tests stay green.
-
-- [ ] **Step 5: Implement the registration controls**
-
-Add state for the three fields.
-
-UI rules:
-- year: numeric input with `inputMode="numeric"`,
-- month: select values 1–12,
-- day: select values 1–31,
-- labels exactly `سال`, `ماه`, `روز`,
-- convert selected strings to Numbers only after checking all three are present,
-- reset birthday state after successful registration/session reset.
-
-Do not duplicate Jalali leap/month validation in React; backend remains authoritative.
-
-- [ ] **Step 6: Pin session parser behavior**
+- [ ] **Step 9: Pin session parser behavior**
 
 Add a test for `parseAuthenticatedSession(...)` showing `birthYear`, `birthMonth`, `birthDay` survive parsing.
 
-If the test already passes because the parser preserves the user object, keep the test and do not change production parsing. If it fails because the parser reconstructs user fields, add the three fields.
+If the parser already preserves the user object, keep the test and do not change production parsing.
 
-- [ ] **Step 7: Verify GREEN**
+- [ ] **Step 10: Verify frontend auth GREEN**
 
 ```powershell
-npm test -- LoginPage.test.jsx
+npm test -- BirthdayDatePicker.test.jsx LoginPage.test.jsx
 ```
 
 Then run the session-response test file.
 
-Expected: all focused frontend auth tests pass.
+Expected: all focused tests pass; MEMBER login and ADMIN MFA tests remain green.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 11: Commit**
 
 ```powershell
-git add frontend/src/pages/LoginPage.jsx frontend/src/pages/LoginPage.test.jsx frontend/src/auth
-git commit -m "feat: collect Jalali birthday during registration"
+git add frontend/package.json frontend/package-lock.json frontend/src/components/BirthdayDatePicker.jsx frontend/src/components/BirthdayDatePicker.test.jsx frontend/src/pages/LoginPage.jsx frontend/src/pages/LoginPage.test.jsx frontend/src/auth
+git commit -m "feat: add Jalali birthday picker to registration"
 ```
 
 ---
@@ -842,7 +905,7 @@ Skip this commit if there are no changes.
 
 1. Jalali utility
 2. Backend registration/session contract
-3. Registration UI
+3. Ready-made Jalali birthday picker + registration UI
 4. Reviewed Prisma migration
 5. Dashboard + Admin Users display
 6. Birthday SMS adapter
