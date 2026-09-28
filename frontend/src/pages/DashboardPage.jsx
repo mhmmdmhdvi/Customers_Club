@@ -3,7 +3,10 @@ import { UserRound } from "lucide-react";
 import dashboardBanner from "../assets/images/dashboard-tehran-banner.jpg";
 import { useAuth } from "../auth/AuthContext";
 import { SiteHeader } from "../components/layout/SiteHeader";
-import { formatPersianJoinDate } from "../utils/formatPersianDate";
+import {
+    formatPersianBirthday,
+    formatPersianJoinDate,
+} from "../utils/formatPersianDate";
 
 export function DashboardPage({
     onRequireLogin = () => { },
@@ -62,6 +65,14 @@ export function DashboardPage({
                     {session.user.phone}
                 </span>
             ),
+        },
+        {
+            label: "تاریخ تولد",
+            value: formatPersianBirthday({
+                birthYear: session.user.birthYear,
+                birthMonth: session.user.birthMonth,
+                birthDay: session.user.birthDay,
+            }),
         },
         {
             label: "وضعیت عضویت",
