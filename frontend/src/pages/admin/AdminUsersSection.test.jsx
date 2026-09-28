@@ -38,6 +38,9 @@ describe("AdminUsersSection", () => {
                                 "2026-09-18T08:30:00.000Z",
                             updatedAt:
                                 "2026-09-18T08:30:00.000Z",
+                            birthYear: 1375,
+                            birthMonth: 7,
+                            birthDay: 12,
                         },
                         {
                             id: 1,
@@ -49,6 +52,9 @@ describe("AdminUsersSection", () => {
                                 "2026-09-10T10:00:00.000Z",
                             updatedAt:
                                 "2026-09-20T10:00:00.000Z",
+                            birthYear: 1375,
+                            birthMonth: 7,
+                            birthDay: 12,
                         },
                     ],
                     pagination: {
@@ -115,6 +121,21 @@ describe("AdminUsersSection", () => {
             screen.getByText(
                 "۲ کاربر",
             ),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByRole("columnheader", {
+                name: "تاریخ تولد",
+            }),
+        ).toBeInTheDocument();
+        const saraRow = screen
+            .getByText("سارا احمدی")
+            .closest("tr");
+
+        expect(saraRow).not.toBeNull();
+
+        expect(
+            within(saraRow).getByText("۱۲ مهر ۱۳۷۵"),
         ).toBeInTheDocument();
     });
 
@@ -210,6 +231,9 @@ describe("AdminUsersSection", () => {
                                 "2026-09-18T08:30:00.000Z",
                             updatedAt:
                                 "2026-09-18T08:30:00.000Z",
+                            birthYear: 1375,
+                            birthMonth: 7,
+                            birthDay: 12,
                         },
                     ],
                     pagination: {
@@ -281,6 +305,9 @@ describe("AdminUsersSection", () => {
                                 "2026-09-18T08:30:00.000Z",
                             updatedAt:
                                 "2026-09-18T08:30:00.000Z",
+                            birthYear: 1375,
+                            birthMonth: 7,
+                            birthDay: 12,
                         },
                     ],
                     pagination: {
@@ -313,6 +340,12 @@ describe("AdminUsersSection", () => {
         expect(
             within(userRow).getByText(
                 "شماره موبایل",
+            ),
+        ).toBeInTheDocument();
+
+        expect(
+            within(userRow).getByText(
+                "تاریخ تولد",
             ),
         ).toBeInTheDocument();
 

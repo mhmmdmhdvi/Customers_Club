@@ -6,6 +6,7 @@ import {
     useEffect,
     useState,
 } from "react";
+import { formatPersianBirthday } from "../../utils/formatPersianDate";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ??
@@ -280,6 +281,10 @@ export function AdminUsersSection({
                                 </th>
 
                                 <th className="px-5 py-4 text-right font-bold">
+                                    تاریخ تولد
+                                </th>
+
+                                <th className="px-5 py-4 text-right font-bold">
                                     نقش
                                 </th>
 
@@ -339,14 +344,28 @@ export function AdminUsersSection({
 
                                     <td className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:table-cell sm:border-b-0 sm:px-5 sm:py-4">
                                         <span className="text-xs font-bold text-slate-400 sm:hidden">
+                                            تاریخ تولد
+                                        </span>
+
+                                        <span className="text-slate-600">
+                                            {formatPersianBirthday({
+                                                birthYear: user.birthYear,
+                                                birthMonth: user.birthMonth,
+                                                birthDay: user.birthDay,
+                                            })}
+                                        </span>
+                                    </td>
+
+                                    <td className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 sm:table-cell sm:border-b-0 sm:px-5 sm:py-4">
+                                        <span className="text-xs font-bold text-slate-400 sm:hidden">
                                             نقش
                                         </span>
 
                                         <span
                                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${user.role ===
-                                                    "ADMIN"
-                                                    ? "bg-violet-50 text-violet-700"
-                                                    : "bg-blue-50 text-blue-700"
+                                                "ADMIN"
+                                                ? "bg-violet-50 text-violet-700"
+                                                : "bg-blue-50 text-blue-700"
                                                 }`}
                                         >
                                             {user.role ===
