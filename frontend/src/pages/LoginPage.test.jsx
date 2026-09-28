@@ -9,6 +9,25 @@ import { LoginPage } from "./LoginPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth } from "../auth/AuthContext";
 
+vi.mock("../components/ui/BirthdayDatePicker", () => ({
+    BirthdayDatePicker: ({ value, onChange }) => (
+        <button
+            type="button"
+            onClick={() =>
+                onChange({
+                    birthYear: 1375,
+                    birthMonth: 7,
+                    birthDay: 12,
+                })
+            }
+        >
+            {value
+                ? `${value.birthYear}/${value.birthMonth}/${value.birthDay}`
+                : "انتخاب تاریخ تولد"}
+        </button>
+    ),
+}));
+
 const sharedSession = {
     user: {
         id: 7,
@@ -294,6 +313,12 @@ it("shows registration fields after verifying a new member's code", async () => 
         screen.getByRole("textbox", { name: "نام خانوادگی" }),
     ).toBeInTheDocument();
 
+    expect(
+        screen.getByRole("button", {
+            name: /انتخاب تاریخ تولد/,
+        }),
+    ).toBeInTheDocument();
+
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -403,8 +428,24 @@ it("registers a new member and shows a signed-in confirmation", async () => {
     const registerButton = screen.getByRole("button", {
         name: "تکمیل ثبت‌نام",
     });
-
     expect(registerButton).toBeEnabled();
+
+    fireEvent.click(registerButton);
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "لطفاً تاریخ تولد را انتخاب کنید.",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "انتخاب تاریخ تولد",
+        }),
+    );
+
     fireEvent.click(registerButton);
 
     expect(
@@ -434,6 +475,9 @@ it("registers a new member and shows a signed-in confirmation", async () => {
         verificationToken,
         firstName: user.firstName,
         lastName: user.lastName,
+        birthYear: 1375,
+        birthMonth: 7,
+        birthDay: 12,
     });
     expect(onAuthenticated).toHaveBeenCalledTimes(1);
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import loginImage from "../assets/images/hero-slab.jpg";
 import { parseAuthenticatedSession } from "../auth/sessionResponse";
+import { BirthdayDatePicker } from "../components/ui/BirthdayDatePicker";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -17,6 +18,7 @@ export function LoginPage({
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
+    const [birthday, setBirthday] = useState(null);
     const [mfaChallenge, setMfaChallenge] = useState(null);
     const [mfaCode, setMfaCode] = useState("");
     const {
@@ -210,6 +212,11 @@ export function LoginPage({
             return;
         }
 
+        if (!birthday) {
+            setError("لطفاً تاریخ تولد را انتخاب کنید.");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -226,6 +233,9 @@ export function LoginPage({
                         verificationToken: verification.verificationToken,
                         firstName: cleanFirstName,
                         lastName: cleanLastName,
+                        birthYear: birthday?.birthYear,
+                        birthMonth: birthday?.birthMonth,
+                        birthDay: birthday?.birthDay,
                     }),
                 },
             );
@@ -765,6 +775,13 @@ export function LoginPage({
                                             disabled={isLoading}
                                             className="w-full rounded-lg border border-border-strong bg-background px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         />
+
+                                        <div className="mt-5">
+                                            <BirthdayDatePicker
+                                                value={birthday}
+                                                onChange={setBirthday}
+                                            />
+                                        </div>
 
                                         {error && (
                                             <p

@@ -8,10 +8,13 @@ datasource db {
 }
 
 model User {
-  id        Int     @id @default(autoincrement())
-  phone     String  @unique
-  firstName String?
-  lastName  String?
+  id         Int     @id @default(autoincrement())
+  phone      String  @unique
+  firstName  String?
+  lastName   String?
+  birthYear  Int
+  birthMonth Int
+  birthDay   Int
 
   role Role @default(MEMBER)
 
