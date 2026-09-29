@@ -14,11 +14,11 @@ import { ContactPage } from "./pages/ContactPage";
 import { AdminPage } from "./pages/AdminPage";
 
 function App() {
-  useReveal();
-
   const [pathname, setPathname] = useState(
     () => window.location.pathname,
   );
+
+  useReveal(pathname);
 
   function navigate(path) {
     window.history.replaceState({}, "", path);

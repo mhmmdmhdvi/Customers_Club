@@ -1,4 +1,5 @@
 import {
+    act,
     fireEvent,
     render,
     screen,
@@ -100,7 +101,31 @@ async function renderLoginPage(props = {}) {
     return result;
 }
 
+async function pasteCode(label, code) {
+    const inputs =
+        await screen.findAllByRole(
+            "textbox",
+            {
+                name: label,
+            },
+        );
+
+    expect(inputs).toHaveLength(6);
+
+    fireEvent.paste(
+        inputs[0],
+        {
+            clipboardData: {
+                getData: () => code,
+            },
+        },
+    );
+
+    return inputs;
+}
+
 afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
 });
 
@@ -145,10 +170,10 @@ describe("LoginPage", () => {
         );
         await waitFor(() => {
             expect(
-                screen.getByRole("textbox", {
-                    name: "کد تأیید",
+                screen.getAllByRole("textbox", {
+                    name: /کد تأیید/,
                 }),
-            ).toBeInTheDocument();
+            ).toHaveLength(6);
         });
     });
 });
@@ -293,16 +318,9 @@ it("shows registration fields after verifying a new member's code", async () => 
         screen.getByRole("button", { name: "دریافت کد تأیید" }),
     );
 
-    const codeInput = await screen.findByRole("textbox", {
-        name: "کد تأیید",
-    });
-
-    fireEvent.change(codeInput, {
-        target: { value: code },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", { name: "تأیید کد" }),
+    await pasteCode(
+        /کد تأیید/,
+        code,
     );
 
     expect(
@@ -400,16 +418,9 @@ it("registers a new member and shows a signed-in confirmation", async () => {
         screen.getByRole("button", { name: "دریافت کد تأیید" }),
     );
 
-    const codeInput = await screen.findByRole("textbox", {
-        name: "کد تأیید",
-    });
-
-    fireEvent.change(codeInput, {
-        target: { value: code },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", { name: "تأیید کد" }),
+    await pasteCode(
+        /کد تأیید/,
+        code,
     );
 
     const firstNameInput = await screen.findByRole("textbox", {
@@ -552,17 +563,9 @@ it("logs in an existing member without showing registration fields", async () =>
         screen.getByRole("button", { name: "دریافت کد تأیید" }),
     );
 
-    // Enter and verify the OTP.
-    const codeInput = await screen.findByRole("textbox", {
-        name: "کد تأیید",
-    });
-
-    fireEvent.change(codeInput, {
-        target: { value: code },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", { name: "تأیید کد" }),
+    await pasteCode(
+        /کد تأیید/,
+        code,
     );
 
     // Login should proceed without asking for registration details.
@@ -689,16 +692,9 @@ it("logs out and returns to an empty phone-number form", async () => {
         screen.getByRole("button", { name: "دریافت کد تأیید" }),
     );
 
-    const codeInput = await screen.findByRole("textbox", {
-        name: "کد تأیید",
-    });
-
-    fireEvent.change(codeInput, {
-        target: { value: code },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", { name: "تأیید کد" }),
+    await pasteCode(
+        /کد تأیید/,
+        code,
     );
 
     expect(
@@ -930,37 +926,32 @@ it("shows the authenticator-code step when ADMIN login requires MFA", async () =
         }),
     );
 
-    const codeInput =
-        await screen.findByRole(
+    const codeInputs =
+        await screen.findAllByRole(
             "textbox",
             {
-                name: "کد تأیید",
+                name: /کد تأیید/,
             },
         );
 
-    fireEvent.change(
-        codeInput,
+    expect(codeInputs).toHaveLength(6);
+
+    fireEvent.paste(
+        codeInputs[0],
         {
-            target: {
-                value: code,
+            clipboardData: {
+                getData: () => code,
             },
         },
     );
 
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "تأیید کد",
-        }),
-    );
-
-    expect(
-        await screen.findByRole(
-            "textbox",
-            {
-                name: "کد احراز هویت",
-            },
-        ),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+        expect(
+            screen.getAllByRole("textbox", {
+                name: /کد احراز هویت/,
+            }),
+        ).toHaveLength(6);
+    });
 
     expect(
         screen.queryByRole(
@@ -1072,38 +1063,14 @@ it("completes ADMIN login with the authenticator code", async () => {
         }),
     );
 
-    const smsInput =
-        await screen.findByRole("textbox", {
-            name: "کد تأیید",
-        });
-
-    fireEvent.change(
-        smsInput,
-        {
-            target: {
-                value: smsCode,
-            },
-        },
+    await pasteCode(
+        /کد تأیید/,
+        smsCode,
     );
 
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "تأیید کد",
-        }),
-    );
-
-    const mfaInput =
-        await screen.findByRole("textbox", {
-            name: "کد احراز هویت",
-        });
-
-    fireEvent.change(
-        mfaInput,
-        {
-            target: {
-                value: mfaCode,
-            },
-        },
+    await pasteCode(
+        /کد احراز هویت/,
+        mfaCode,
     );
 
     fireEvent.click(
@@ -1220,33 +1187,15 @@ it("keeps the ADMIN on the MFA step when the authenticator code is not 6 digits"
         }),
     );
 
-    const smsInput =
-        await screen.findByRole("textbox", {
-            name: "کد تأیید",
-        });
-
-    fireEvent.change(smsInput, {
-        target: {
-            value: smsCode,
-        },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "تأیید کد",
-        }),
+    await pasteCode(
+        /کد تأیید/,
+        smsCode,
     );
 
-    const mfaInput =
-        await screen.findByRole("textbox", {
-            name: "کد احراز هویت",
-        });
-
-    fireEvent.change(mfaInput, {
-        target: {
-            value: "123",
-        },
-    });
+    await pasteCode(
+        /کد احراز هویت/,
+        "123",
+    );
 
     fireEvent.click(
         screen.getByRole("button", {
@@ -1261,10 +1210,10 @@ it("keeps the ADMIN on the MFA step when the authenticator code is not 6 digits"
     );
 
     expect(
-        screen.getByRole("textbox", {
-            name: "کد احراز هویت",
+        screen.getAllByRole("textbox", {
+            name: /کد احراز هویت/,
         }),
-    ).toBeInTheDocument();
+    ).toHaveLength(6);
 
     expect(
         screen.queryByRole("heading", {
@@ -1346,33 +1295,15 @@ it("keeps the MFA challenge when the backend rejects the authenticator code", as
         }),
     );
 
-    const smsInput =
-        await screen.findByRole("textbox", {
-            name: "کد تأیید",
-        });
-
-    fireEvent.change(smsInput, {
-        target: {
-            value: smsCode,
-        },
-    });
-
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "تأیید کد",
-        }),
+    await pasteCode(
+        /کد تأیید/,
+        smsCode,
     );
 
-    const mfaInput =
-        await screen.findByRole("textbox", {
-            name: "کد احراز هویت",
-        });
-
-    fireEvent.change(mfaInput, {
-        target: {
-            value: "654321",
-        },
-    });
+    await pasteCode(
+        /کد احراز هویت/,
+        "654321",
+    );
 
     fireEvent.click(
         screen.getByRole("button", {
@@ -1387,10 +1318,10 @@ it("keeps the MFA challenge when the backend rejects the authenticator code", as
     );
 
     expect(
-        screen.getByRole("textbox", {
-            name: "کد احراز هویت",
+        screen.getAllByRole("textbox", {
+            name: /کد احراز هویت/,
         }),
-    ).toBeInTheDocument();
+    ).toHaveLength(6);
 
     expect(
         screen.queryByRole("heading", {
@@ -1408,4 +1339,413 @@ it("keeps the MFA challenge when the backend rejects the authenticator code", as
         mfaChallengeToken,
         code: "654321",
     });
+});
+
+it("automatically verifies the SMS code when all six digits are entered", async () => {
+    const onAuthenticated = vi.fn();
+
+    const phone = "09123456789";
+    const code = "123456";
+    const verificationToken = "b".repeat(64);
+
+    const user = {
+        id: 7,
+        phone,
+        firstName: "سارا",
+        lastName: "احمدی",
+        role: "MEMBER",
+        createdAt: "2026-09-10T08:00:00.000Z",
+    };
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                nextStep: "LOGIN",
+                authenticated: false,
+                verificationToken,
+                verificationExpiresAt: new Date(
+                    Date.now() + 5 * 60 * 1000,
+                ).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Logged in",
+                authenticated: true,
+                user,
+                tokenType: "Bearer",
+                accessToken: "test.access.token",
+                expiresIn: 900,
+                accessExpiresAt: new Date(
+                    Date.now() + 15 * 60 * 1000,
+                ).toISOString(),
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage({
+        onAuthenticated,
+    });
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const codeInputs =
+        await screen.findAllByRole(
+            "textbox",
+            {
+                name: /کد تأیید/,
+            },
+        );
+
+    fireEvent.paste(
+        codeInputs[0],
+        {
+            clipboardData: {
+                getData: () => code,
+            },
+        },
+    );
+
+    expect(
+        await screen.findByRole("heading", {
+            name: "خوش آمدید",
+        }),
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    expect(
+        onAuthenticated,
+    ).toHaveBeenCalledTimes(1);
+});
+
+it("does not auto-verify again after an invalid SMS code", async () => {
+    const phone = "09123456789";
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 400,
+            json: async () => ({
+                message: "Invalid OTP",
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    const codeInputs =
+        await screen.findAllByRole(
+            "textbox",
+            {
+                name: /کد تأیید/,
+            },
+        );
+
+    fireEvent.paste(
+        codeInputs[0],
+        {
+            clipboardData: {
+                getData: () => "111111",
+            },
+        },
+    );
+
+    expect(
+        await screen.findByRole("alert"),
+    ).toHaveTextContent(
+        "کد تأیید نامعتبر است یا منقضی شده است.",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const currentInputs =
+        screen.getAllByRole(
+            "textbox",
+            {
+                name: /کد تأیید/,
+            },
+        );
+
+    fireEvent.change(
+        currentInputs[5],
+        {
+            target: {
+                value: "2",
+            },
+        },
+    );
+
+    await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    expect(
+        screen.getByRole("button", {
+            name: "تأیید کد",
+        }),
+    ).toBeInTheDocument();
+});
+
+it("shows a disabled resend control with a two-minute countdown", async () => {
+    vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        }),
+    );
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: "09123456789",
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    expect(
+        await screen.findAllByRole("textbox", {
+            name: /کد تأیید/,
+        }),
+    ).toHaveLength(6);
+
+    expect(
+        screen.getByRole("button", {
+            name: "ارسال مجدد کد",
+        }),
+    ).toBeDisabled();
+
+    expect(
+        screen.getByText("02:00"),
+    ).toBeInTheDocument();
+});
+
+it("enables resend after two minutes and requests a fresh code", async () => {
+    const phone = "09123456789";
+
+    const fetchMock = vi
+        .fn()
+        // Initial SMS.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        // First automatic verification is wrong.
+        .mockResolvedValueOnce({
+            ok: false,
+            status: 400,
+            json: async () => ({
+                message: "Invalid OTP",
+            }),
+        })
+        // Resend SMS.
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Let AuthProvider restoration finish using normal timers.
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    // No countdown exists yet, so it is safe to switch
+    // to fake timers here.
+    vi.useFakeTimers();
+
+    await act(async () => {
+        fireEvent.click(
+            screen.getByRole("button", {
+                name: "دریافت کد تأیید",
+            }),
+        );
+
+        await Promise.resolve();
+        await Promise.resolve();
+    });
+
+    const codeInputs =
+        screen.getAllByRole("textbox", {
+            name: /کد تأیید/,
+        });
+
+    expect(codeInputs).toHaveLength(6);
+
+    await act(async () => {
+        fireEvent.paste(
+            codeInputs[0],
+            {
+                clipboardData: {
+                    getData: () => "111111",
+                },
+            },
+        );
+
+        await Promise.resolve();
+        await Promise.resolve();
+    });
+
+    expect(
+        screen.getByRole("alert"),
+    ).toHaveTextContent(
+        "کد تأیید نامعتبر است یا منقضی شده است.",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const resendButton =
+        screen.getByRole("button", {
+            name: "ارسال مجدد کد",
+        });
+
+    expect(resendButton).toBeDisabled();
+
+    expect(
+        screen.getByText("02:00"),
+    ).toBeInTheDocument();
+
+    for (let second = 0; second < 120; second += 1) {
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(
+                1000,
+            );
+        });
+    }
+
+    expect(
+        screen.getByText("00:00"),
+    ).toBeInTheDocument();
+
+    expect(resendButton).toBeEnabled();
+
+    await act(async () => {
+        fireEvent.click(resendButton);
+
+        await Promise.resolve();
+        await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    expect(
+        fetchMock.mock.calls[2][0],
+    ).toMatch(/\/auth\/request-code$/);
+
+    expect(
+        JSON.parse(
+            fetchMock.mock.calls[2][1].body,
+        ),
+    ).toEqual({
+        phone,
+    });
+
+    expect(
+        screen.queryByRole("alert"),
+    ).not.toBeInTheDocument();
+
+    const freshInputs =
+        screen.getAllByRole("textbox", {
+            name: /کد تأیید/,
+        });
+
+    freshInputs.forEach((input) => {
+        expect(input).toHaveValue("");
+    });
+
+    expect(
+        screen.getByRole("button", {
+            name: "ارسال مجدد کد",
+        }),
+    ).toBeDisabled();
+
+    expect(
+        screen.getByText("02:00"),
+    ).toBeInTheDocument();
 });
