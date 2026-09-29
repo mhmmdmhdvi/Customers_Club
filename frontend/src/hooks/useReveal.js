@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-export function useReveal() {
+export function useReveal(refreshKey) {
     useEffect(() => {
         const elements = Array.from(
             document.querySelectorAll("[data-reveal]"),
@@ -40,5 +40,5 @@ export function useReveal() {
         return () => {
             observer.disconnect();
         };
-    }, []);
+    }, [refreshKey]);
 }

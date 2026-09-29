@@ -11,7 +11,18 @@ const proof = "d".repeat(64); const phone = "09121234567"; const origin = "http:
 function setup(purpose = "REGISTER", production = false) {
   const browserOrigin = production ? "https://club.example.test" : origin;
   const config = readAuthConfig({ NODE_ENV: production ? "production" : "test", ACCESS_TOKEN_SECRET: crypto.randomBytes(32).toString("hex"), JWT_ISSUER: "routes-test", JWT_AUDIENCE: "routes-web", AUTH_ALLOWED_ORIGINS: browserOrigin });
-  const db = createSessionDb({ users: purpose === "LOGIN" ? [{ id: 1, phone, role: "MEMBER", firstName: "A", lastName: "B" }] : [], proofs: [{ id: 1, phone, tokenHash: crypto.createHash("sha256").update(proof).digest("hex"), purpose, usedAt: null, expiresAt: new Date(Date.now() + 300000) }] });
+  const db = createSessionDb({
+    users: purpose === "LOGIN" ? [{
+      id: 1,
+      phone,
+      role: "MEMBER",
+      firstName: "A",
+      lastName: "B",
+      birthYear: 1375,
+      birthMonth: 7,
+      birthDay: 12,
+    }] : [], proofs: [{ id: 1, phone, tokenHash: crypto.createHash("sha256").update(proof).digest("hex"), purpose, usedAt: null, expiresAt: new Date(Date.now() + 300000) }]
+  });
   const service = createSessionService(db.prisma, { tokens: createAccessTokens(config) });
   const controller = createSessionController({ sessionService: service, getConfig: () => config });
   const app = express(); app.use(cors(createSessionCorsOptions(() => config))); app.use(express.json()); app.use("/auth", createSessionRoutes({ controller, sessionService: service, getConfig: () => config }));
@@ -19,7 +30,14 @@ function setup(purpose = "REGISTER", production = false) {
   return { app, db, post, config };
 }
 function cookie(res) { return res.headers["set-cookie"][0].split(";")[0]; }
-const details = () => ({ verificationToken: proof, firstName: "خسرو", lastName: "وفایی" });
+const details = () => ({
+  verificationToken: proof,
+  firstName: "خسرو",
+  lastName: "وفایی",
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+});
 
 test("HTTP registration -> me -> refresh -> logout works without another OTP", async () => {
   const { app, db, post } = setup(); const created = await post("/auth/register", details());

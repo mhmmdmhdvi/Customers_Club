@@ -1,0 +1,916 @@
+# Member Birthday Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Require a valid past Jalali birthday for MEMBER registration, display it to members/admins, and add an idempotent one-shot annual birthday SMS processor.
+
+**Architecture:** Store `birthYear`, `birthMonth`, and `birthDay` directly on `User`; keep Jalali validation/date conversion in a focused backend utility; carry birthday fields through existing authenticated-session responses. Add a `BirthdaySmsDelivery` ledger with a unique `(userId, jalaliYear)` claim, a FarazSMS birthday adapter, and a scheduler-independent one-shot processor. The Node web server never schedules birthday work.
+
+**Tech Stack:** Node.js/CommonJS, Express 5, PostgreSQL 18, Prisma 7.10.0, React 19/JSX, Vite 8, Tailwind 4, Node test runner, Vitest/RTL, FarazSMS pattern API, `jalaali-js` (backend runtime dependency), `react-multi-date-picker` (frontend Persian/Jalali picker).
+
+**Spec:** `docs/superpowers/specs/2026-09-27-member-birthday-design.md`
+
+## Global Constraints
+
+- MEMBER registration requires a valid past Jalali `birthYear`, `birthMonth`, and `birthDay`.
+- Registration uses one prominent ready-made Persian/Jalali date-picker field, not separate hand-built day/month controls.
+- No minimum age.
+- Birthday matching uses `Asia/Tehran`, never the host machine's implicit timezone.
+- ADMIN accounts are excluded from birthday SMS delivery.
+- At most one birthday delivery claim per `(userId, jalaliYear)`.
+- No birthday scheduler, cron loop, or `setInterval()` inside the Node web process.
+- Production systemd scheduling is deferred until an Ubuntu server exists.
+- Preserve existing OTP, sessions, ADMIN MFA, CSRF/origin controls, and Admin Console behavior.
+- No `prisma db push`, database reset, destructive blind SQL, or secret logging.
+- Migration SQL must be reviewed before application.
+- `backend/scripts/promote-local-admin.js` remains untracked unless explicitly handled separately.
+- Every production behavior change follows RED → GREEN TDD.
+
+## Review Focus
+
+1. **Jalali boundary input:** Esfand 30 must be accepted only in a valid Jalali leap year; pin this in Task 1.
+2. **"Past" boundary:** today's Jalali date is not a valid birth date; yesterday is; pin this in Task 1.
+3. **Session propagation:** birthday fields must survive registration, normal login, refresh/restoration, and `/auth/me`; pin this in Task 2.
+4. **Concurrent delivery:** two processors racing for the same member/year must result in one claim and at most one SMS; pin this in Task 7.
+5. **Ambiguous/failed provider call:** mark the claimed row `FAILED`, do not auto-retry it in the same or later normal run, and continue other members; pin this in Task 7.
+
+---
+
+## File Map
+
+### Backend domain and registration
+- Create `backend/src/utils/jalali-date.js` — Jalali validation and Tehran "today" conversion.
+- Create `backend/tests/jalali-date.test.js`.
+- Modify `backend/src/services/registration.service.factory.js` — accept/store required birthday fields.
+- Modify `backend/tests/registration.service.test.js`.
+- Modify `backend/src/services/session.service.factory.js` — include birthday fields in authenticated user selections.
+- Modify `backend/tests/session.service.test.js`.
+
+### Database
+- Modify `backend/prisma/schema.prisma`.
+- Create `backend/prisma/migrations/<timestamp>_add_member_birthday/migration.sql`.
+
+### Frontend registration/session/display
+- Modify `frontend/package.json` and frontend lockfile — add `react-multi-date-picker`.
+- Create `frontend/src/components/BirthdayDatePicker.jsx` — focused Persian/Jalali picker wrapper and custom visible input.
+- Create `frontend/src/components/BirthdayDatePicker.test.jsx`.
+- Modify `frontend/src/pages/LoginPage.jsx`.
+- Modify `frontend/src/pages/LoginPage.test.jsx`.
+- Verify/modify `frontend/src/auth/sessionResponse.js` only if its parser strips unknown user fields; pin with its existing test file.
+- Create `frontend/src/utils/formatJalaliBirthday.js`.
+- Create `frontend/src/utils/formatJalaliBirthday.test.js`.
+- Modify `frontend/src/pages/DashboardPage.jsx`.
+- Modify `frontend/src/pages/DashboardPage.test.jsx`.
+- Modify `frontend/src/pages/admin/AdminUsersSection.jsx`.
+- Modify `frontend/src/pages/admin/AdminUsersSection.test.jsx`.
+
+### Admin API
+- Modify `backend/src/services/admin-users.service.factory.js`.
+- Modify `backend/tests/admin-users.service.test.js`.
+
+### Birthday SMS and processor
+- Create `backend/src/services/birthday-delivery.js`.
+- Create `backend/tests/birthday-delivery.test.js`.
+- Create `backend/src/services/birthday.service.factory.js`.
+- Create `backend/tests/birthday.service.test.js`.
+- Create `backend/src/services/birthday.service.js`.
+- Create `backend/src/services/birthday-command.js`.
+- Create `backend/tests/birthday-command.test.js`.
+- Create `backend/scripts/process-birthdays.js`.
+
+---
+
+### Task 1: Jalali Date Domain Utility
+
+**Files:**
+- Modify: `backend/package.json`
+- Modify: backend lockfile generated by npm
+- Create: `backend/src/utils/jalali-date.js`
+- Create: `backend/tests/jalali-date.test.js`
+
+**Interfaces:**
+- Consumes: `jalaali-js` functions `isValidJalaaliDate(...)` and `toJalaali(...)`.
+- Produces:
+  - `isValidPastJalaliDate(birthYear, birthMonth, birthDay, now = new Date()) -> boolean`
+  - `getTehranJalaliDate(now = new Date()) -> { year, month, day }`
+
+- [ ] **Step 1: Install the backend calendar dependency**
+
+From `backend`:
+
+```powershell
+npm install jalaali-js
+```
+
+Expected: `package.json` and lockfile record `jalaali-js`; no frontend dependency is added.
+
+- [ ] **Step 2: Write RED tests for valid/invalid Jalali dates**
+
+Add tests named:
+
+```js
+test("accepts a valid historical Jalali birthday", ...)
+test("rejects month outside 1 through 12", ...)
+test("rejects invalid day for a 30-day month", ...)
+test("accepts Esfand 30 in a leap year", ...)
+test("rejects Esfand 30 in a non-leap year", ...)
+```
+
+Assertions use `isValidPastJalaliDate(...)`.
+
+- [ ] **Step 3: Run the focused test**
+
+```powershell
+node --test tests/jalali-date.test.js
+```
+
+Expected: RED because `../src/utils/jalali-date` does not exist.
+
+- [ ] **Step 4: Implement the date utility**
+
+`getTehranJalaliDate(now)` must first extract Gregorian year/month/day for `Asia/Tehran` via `Intl.DateTimeFormat(...).formatToParts(now)`, then call `toJalaali(gy, gm, gd)`. Do not call `Date#getFullYear()` for the business date.
+
+`isValidPastJalaliDate(...)` must:
+- require integer numeric arguments (no string coercion),
+- delegate calendar validity to `isValidJalaaliDate`,
+- compare lexicographically against `getTehranJalaliDate(now)`,
+- reject a date equal to today.
+
+- [ ] **Step 5: Add Review Focus tests for the date boundary**
+
+Add:
+
+```js
+test("rejects today's Jalali date as a birth date", ...)
+test("accepts the previous Jalali day as a birth date", ...)
+test("uses Asia/Tehran rather than the host timezone", ...)
+```
+
+Use fixed `Date` values around a Tehran midnight boundary.
+
+- [ ] **Step 6: Verify GREEN**
+
+```powershell
+node --test tests/jalali-date.test.js
+```
+
+Expected: all Jalali tests pass.
+
+- [ ] **Step 7: Commit**
+
+```powershell
+git add backend/package.json backend/package-lock.json backend/src/utils/jalali-date.js backend/tests/jalali-date.test.js
+git commit -m "feat: add Jalali birthday validation"
+```
+
+---
+
+### Task 2: Backend Registration and Authenticated User Contract
+
+**Files:**
+- Modify: `backend/src/services/registration.service.factory.js`
+- Modify: `backend/tests/registration.service.test.js`
+- Modify: `backend/src/services/session.service.factory.js`
+- Modify: `backend/tests/session.service.test.js`
+
+**Interfaces:**
+- Consumes: `isValidPastJalaliDate(...)` from Task 1.
+- Produces registration input:
+  - `{ verificationToken, firstName, lastName, birthYear, birthMonth, birthDay }`
+- Produces authenticated user objects containing:
+  - `birthYear`, `birthMonth`, `birthDay`
+
+- [ ] **Step 1: Write RED registration validation tests**
+
+Add tests that assert:
+- missing birthday fields are rejected,
+- string birthday values such as `"1375"` are rejected,
+- invalid Jalali combinations are rejected,
+- a future/equal-today date is rejected,
+- an otherwise valid registration persists all three birthday fields.
+
+Use an injected/fixed `now` so the test is deterministic.
+
+- [ ] **Step 2: Run registration tests**
+
+```powershell
+node --test tests/registration.service.test.js
+```
+
+Expected: RED because the current allowlist only accepts `verificationToken`, `firstName`, and `lastName`.
+
+- [ ] **Step 3: Extend the registration factory**
+
+Change `createRegistrationService(prisma, options)` to support `options.now = () => new Date()` without changing existing callers.
+
+Update:
+- `REGISTER_FIELDS`,
+- `parseRegistration(...)`,
+- `USER_FIELDS`,
+- `tx.user.create({ data: ... })`.
+
+Use exactly the six request fields from the spec; continue rejecting unknown fields.
+
+Throw `RegistrationError("Invalid birth date")` for missing, non-integer, invalid, or non-past birthdays.
+
+- [ ] **Step 4: Verify registration GREEN**
+
+```powershell
+node --test tests/registration.service.test.js
+```
+
+Expected: all registration tests pass.
+
+- [ ] **Step 5: Write RED session propagation tests**
+
+In `backend/tests/session.service.test.js`, add assertions that a MEMBER birthday is present after:
+- registration session issuance,
+- normal login,
+- refresh/rotation,
+- authentication used by `/auth/me`.
+
+Do not change ADMIN MFA behavior.
+
+- [ ] **Step 6: Extend the session service user selection**
+
+Add `birthYear`, `birthMonth`, and `birthDay` to the existing `USER_FIELDS` selection used by session issuance/authentication.
+
+- [ ] **Step 7: Verify auth/session tests**
+
+```powershell
+node --test tests/session.service.test.js
+```
+
+Expected: all tests pass, including existing ADMIN MFA cases.
+
+- [ ] **Step 8: Commit**
+
+```powershell
+git add backend/src/services/registration.service.factory.js backend/tests/registration.service.test.js backend/src/services/session.service.factory.js backend/tests/session.service.test.js
+git commit -m "feat: require birthday during member registration"
+```
+
+---
+
+### Task 3: Ready-Made Jalali Birthday Picker and Registration UI
+
+**Files:**
+- Modify: `frontend/package.json`
+- Modify: frontend lockfile
+- Create: `frontend/src/components/BirthdayDatePicker.jsx`
+- Create: `frontend/src/components/BirthdayDatePicker.test.jsx`
+- Modify: `frontend/src/pages/LoginPage.jsx`
+- Modify: `frontend/src/pages/LoginPage.test.jsx`
+- Verify/modify: `frontend/src/auth/sessionResponse.js`
+- Verify/modify: its existing test file
+
+**Interfaces:**
+- Consumes backend registration contract from Task 2.
+- Uses `react-multi-date-picker` with Persian/Solar Hijri calendar and Farsi locale.
+- Produces `onChange(null | { birthYear, birthMonth, birthDay })`.
+- Registration sends numeric `birthYear`, `birthMonth`, `birthDay`.
+
+- [ ] **Step 1: Install the frontend date-picker dependency**
+
+From `frontend`:
+
+```powershell
+npm install react-multi-date-picker
+```
+
+Expected: frontend dependency files change; backend dependency files do not.
+
+- [ ] **Step 2: Write the RED component tests for the visible birthday field**
+
+Create `BirthdayDatePicker.test.jsx` and assert:
+- one control is clearly labelled `تاریخ تولد`,
+- placeholder text is `انتخاب تاریخ تولد`,
+- the visible field is full-width/read-only rather than a free-form birthday text box,
+- a calendar icon is present,
+- activating the field opens the calendar.
+
+Do not test internal library implementation details.
+
+- [ ] **Step 3: Run the focused component test**
+
+```powershell
+npm test -- BirthdayDatePicker.test.jsx
+```
+
+Expected: RED because `BirthdayDatePicker.jsx` does not exist.
+
+- [ ] **Step 4: Implement `BirthdayDatePicker`**
+
+Use:
+- `DatePicker` from `react-multi-date-picker`,
+- Persian/Solar Hijri calendar,
+- `persian_fa` locale,
+- `calendarPosition="bottom-right"`,
+- `editable={false}`,
+- single-date mode,
+- month picker enabled,
+- year picker enabled,
+- no manual hand-built 31/30/Esfand logic.
+
+Render a custom input/button-like field matching the existing registration form:
+- label `تاریخ تولد`,
+- placeholder `انتخاب تاریخ تولد`,
+- calendar icon,
+- click/tap anywhere opens the picker,
+- selected value displayed clearly in Persian,
+- suitable width/touch target on mobile.
+
+The year/month controls must remain directly usable so a member can jump to an old birth year instead of paging backward month-by-month.
+
+`onChange` emits:
+
+```js
+{
+  birthYear: date.year,
+  birthMonth: date.month.number,
+  birthDay: date.day,
+}
+```
+
+or `null` when cleared.
+
+- [ ] **Step 5: Add the selected-date RED test**
+
+Select a known Jalali date through the component and assert:
+
+```js
+onChange({
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+})
+```
+
+Also assert a future date is not selectable through the UI's configured max-date behavior. Backend validation remains authoritative.
+
+- [ ] **Step 6: Verify the picker component GREEN**
+
+```powershell
+npm test -- BirthdayDatePicker.test.jsx
+```
+
+Expected: all picker tests pass.
+
+- [ ] **Step 7: Write RED LoginPage integration tests**
+
+After OTP verification returns `REGISTER`, assert:
+- the `تاریخ تولد` picker is visible,
+- registration without selecting a birthday does not call `/auth/register` and shows `تاریخ تولد را انتخاب کنید.`,
+- after selecting `۱۲ مهر ۱۳۷۵`, the request body is exactly:
+
+```js
+{
+  verificationToken,
+  firstName,
+  lastName,
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+}
+```
+
+- [ ] **Step 8: Integrate the picker into `LoginPage`**
+
+Keep birthday state as either `null` or the numeric component object from `BirthdayDatePicker`.
+
+Reset it after successful registration and when the login/session form is reset.
+
+Do not add separate day/month/year calculations to `LoginPage`.
+
+- [ ] **Step 9: Pin session parser behavior**
+
+Add a test for `parseAuthenticatedSession(...)` showing `birthYear`, `birthMonth`, `birthDay` survive parsing.
+
+If the parser already preserves the user object, keep the test and do not change production parsing.
+
+- [ ] **Step 10: Verify frontend auth GREEN**
+
+```powershell
+npm test -- BirthdayDatePicker.test.jsx LoginPage.test.jsx
+```
+
+Then run the session-response test file.
+
+Expected: all focused tests pass; MEMBER login and ADMIN MFA tests remain green.
+
+- [ ] **Step 11: Commit**
+
+```powershell
+git add frontend/package.json frontend/package-lock.json frontend/src/components/BirthdayDatePicker.jsx frontend/src/components/BirthdayDatePicker.test.jsx frontend/src/pages/LoginPage.jsx frontend/src/pages/LoginPage.test.jsx frontend/src/auth
+git commit -m "feat: add Jalali birthday picker to registration"
+```
+
+---
+
+### Task 4: Prisma Birthday Schema and Reviewed Migration
+
+**Files:**
+- Modify: `backend/prisma/schema.prisma`
+- Create: `backend/prisma/migrations/<timestamp>_add_member_birthday/migration.sql`
+
+**Interfaces:**
+- Produces non-null `User.birthYear`, `User.birthMonth`, `User.birthDay`.
+- Produces `BirthdaySmsDeliveryStatus` and `BirthdaySmsDelivery`.
+- Database guarantee: `@@unique([userId, jalaliYear])`.
+
+- [ ] **Step 1: Take a fresh custom-format backup before any data change**
+
+Use the established PostgreSQL 18 `pg_dump.exe` workflow for `customer_club_db`.
+
+Expected: a new `.dump` exists outside the repo and `pg_restore --list` succeeds.
+
+- [ ] **Step 2: Inspect existing local users without exposing phone numbers**
+
+Run a read-only query equivalent to:
+
+```sql
+SELECT id, role FROM "User" ORDER BY id;
+```
+
+If any rows exist, **stop at this step**. Because the approved schema makes all three birthday columns non-null, execution requires explicit confirmation that those exact local accounts are disposable before deleting/recreating them. Never put fake birthday defaults into migration history.
+
+- [ ] **Step 3: After explicit approval only, remove the confirmed disposable local test accounts**
+
+Delete only the reviewed local test rows; rely on existing cascade relations for their sessions/MFA data. Do not run a database-wide reset.
+
+Expected: `SELECT id, role FROM "User"` returns no rows before applying the non-null migration.
+
+- [ ] **Step 4: Write the Prisma schema change**
+
+Add to `User`:
+
+```prisma
+birthYear  Int
+birthMonth Int
+birthDay   Int
+birthdaySmsDeliveries BirthdaySmsDelivery[]
+
+@@index([role, birthMonth, birthDay])
+```
+
+Add the enum/model exactly as approved in the spec.
+
+- [ ] **Step 5: Generate migration SQL without using the shadow-database path**
+
+Clear inherited target overrides first:
+
+```powershell
+Remove-Item Env:\DOTENV_CONFIG_OVERRIDE -ErrorAction SilentlyContinue
+Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
+```
+
+Generate a database-to-schema diff using the same reviewed `prisma migrate diff` workflow used for the ADMIN MFA migration, saving it under:
+
+```text
+backend/prisma/migrations/<timestamp>_add_member_birthday/migration.sql
+```
+
+Do not use `prisma migrate dev` if it requires shadow-database creation.
+
+- [ ] **Step 6: Review migration SQL**
+
+The SQL may only:
+- add the three `User` columns,
+- add the birthday user index,
+- create the enum,
+- create `BirthdaySmsDelivery`,
+- create its indexes/unique constraint/FK.
+
+It must not drop unrelated tables/columns or rewrite auth/MFA data.
+
+- [ ] **Step 7: Apply only to the intended development database**
+
+```powershell
+npx prisma migrate deploy
+npx prisma generate
+npx prisma migrate status
+```
+
+Expected:
+- migration applies successfully,
+- client generation succeeds,
+- `customer_club_db` reports schema up to date.
+
+- [ ] **Step 8: Run backend suite**
+
+```powershell
+npm test
+```
+
+Expected: full backend suite passes.
+
+- [ ] **Step 9: Commit**
+
+```powershell
+git add prisma/schema.prisma prisma/migrations src/generated
+git commit -m "feat: add birthday persistence and delivery ledger"
+```
+
+If generated Prisma client files are intentionally ignored by this repo, do not force-add them.
+
+---
+
+### Task 5: Birthday Formatting, Dashboard, and Admin Users
+
+**Files:**
+- Create: `frontend/src/utils/formatJalaliBirthday.js`
+- Create: `frontend/src/utils/formatJalaliBirthday.test.js`
+- Modify: `frontend/src/pages/DashboardPage.jsx`
+- Modify: `frontend/src/pages/DashboardPage.test.jsx`
+- Modify: `backend/src/services/admin-users.service.factory.js`
+- Modify: `backend/tests/admin-users.service.test.js`
+- Modify: `frontend/src/pages/admin/AdminUsersSection.jsx`
+- Modify: `frontend/src/pages/admin/AdminUsersSection.test.jsx`
+
+**Interfaces:**
+- Produces `formatJalaliBirthday({ birthYear, birthMonth, birthDay }) -> string`.
+- Admin `/admin/users` items include the three birthday fields.
+
+- [ ] **Step 1: Write RED formatter tests**
+
+Assert:
+
+```js
+formatJalaliBirthday({
+  birthYear: 1375,
+  birthMonth: 7,
+  birthDay: 12,
+}) === "۱۲ مهر ۱۳۷۵"
+```
+
+Also test each of the 12 month names and Persian digit output.
+
+- [ ] **Step 2: Implement the formatter**
+
+Use a fixed 12-item Persian Jalali month-name array and `Intl.NumberFormat("fa-IR", { useGrouping: false })`.
+
+- [ ] **Step 3: Write RED dashboard test**
+
+A session user with `1375/7/12` must render a row labelled `تاریخ تولد` containing `۱۲ مهر ۱۳۷۵`.
+
+- [ ] **Step 4: Add the dashboard row and verify**
+
+```powershell
+npm test -- DashboardPage.test.jsx formatJalaliBirthday.test.js
+```
+
+Expected: GREEN.
+
+- [ ] **Step 5: Write RED admin-service selection test**
+
+Assert the `prisma.user.findMany({ select: ... })` selection includes:
+
+```js
+birthYear: true,
+birthMonth: true,
+birthDay: true,
+```
+
+- [ ] **Step 6: Extend `createAdminUsersService` and verify**
+
+```powershell
+node --test tests/admin-users.service.test.js
+```
+
+Expected: GREEN.
+
+- [ ] **Step 7: Write RED Admin Users UI tests**
+
+For both desktop and mobile rendering, assert birthday label/value is visible for a user with `1375/7/12`.
+
+- [ ] **Step 8: Add birthday to the Admin Users table/cards**
+
+Add one desktop header and corresponding responsive cell labelled `تاریخ تولد`, formatted by `formatJalaliBirthday(...)`.
+
+- [ ] **Step 9: Verify frontend focused tests**
+
+```powershell
+npm test -- AdminUsersSection.test.jsx DashboardPage.test.jsx formatJalaliBirthday.test.js
+```
+
+Expected: all pass.
+
+- [ ] **Step 10: Commit**
+
+```powershell
+git add backend/src/services/admin-users.service.factory.js backend/tests/admin-users.service.test.js frontend/src/utils frontend/src/pages/DashboardPage.jsx frontend/src/pages/DashboardPage.test.jsx frontend/src/pages/admin/AdminUsersSection.jsx frontend/src/pages/admin/AdminUsersSection.test.jsx
+git commit -m "feat: display member birthdays"
+```
+
+---
+
+### Task 6: FarazSMS Birthday Delivery Adapter
+
+**Files:**
+- Create: `backend/src/services/birthday-delivery.js`
+- Create: `backend/tests/birthday-delivery.test.js`
+
+**Interfaces:**
+- Produces `getBirthdaySender(env = process.env, fetchImpl = globalThis.fetch)`.
+- Returned sender signature:
+  - `sendBirthdayMessage({ phone, firstName, signal }) -> Promise<void>`
+- Required configuration:
+  - existing `FARAZSMS_API_KEY`
+  - existing `FARAZSMS_LINE_NUMBER`
+  - new `FARAZSMS_BIRTHDAY_PATTERN_CODE`
+- Birthday FarazSMS pattern must define an attribute named `name`.
+
+- [ ] **Step 1: Write RED configuration tests**
+
+Missing/blank API key, line number, birthday pattern code, or fetch implementation must fail before sending.
+
+Do not reuse `FARAZSMS_PATTERN_CODE`; that remains OTP-only.
+
+- [ ] **Step 2: Write RED request test**
+
+For:
+
+```js
+{ phone: "09123456789", firstName: "علی" }
+```
+
+assert POST to the same FarazSMS pattern URL with:
+- `code: FARAZSMS_BIRTHDAY_PATTERN_CODE`,
+- `attributes: { name: "علی" }`,
+- recipient phone,
+- existing line number,
+- `number_format: "english"`.
+
+- [ ] **Step 3: Write RED response/error tests**
+
+Treat HTTP 201 and HTTP 200 `{ status: "success" }` as success.
+
+Treat network errors, malformed 200 JSON, and other statuses as delivery failures without logging secrets.
+
+- [ ] **Step 4: Implement the birthday adapter**
+
+Follow the current `otp-delivery.js` transport pattern but keep birthday configuration/function names separate.
+
+- [ ] **Step 5: Verify**
+
+```powershell
+node --test tests/birthday-delivery.test.js
+```
+
+Expected: all adapter tests pass.
+
+- [ ] **Step 6: Commit**
+
+```powershell
+git add backend/src/services/birthday-delivery.js backend/tests/birthday-delivery.test.js
+git commit -m "feat: add birthday SMS delivery adapter"
+```
+
+---
+
+### Task 7: Idempotent Birthday Processor Service
+
+**Files:**
+- Create: `backend/src/services/birthday.service.factory.js`
+- Create: `backend/tests/birthday.service.test.js`
+
+**Interfaces:**
+- Consumes:
+  - `getTehranJalaliDate(now)` from Task 1,
+  - `sendBirthdayMessage({ phone, firstName })` from Task 6.
+- Produces:
+  - `createBirthdayService(prisma, { sendBirthdayMessage, now = () => new Date(), getJalaliDate = getTehranJalaliDate })`
+  - `.processToday() -> { jalaliYear, month, day, eligible, claimed, sent, failed, skipped }`
+
+- [ ] **Step 1: Write RED eligibility query test**
+
+For a fixed Jalali date, assert the service queries only:
+
+```js
+{
+  role: "MEMBER",
+  birthMonth: today.month,
+  birthDay: today.day,
+}
+```
+
+and selects only `id`, `phone`, `firstName`.
+
+- [ ] **Step 2: Write RED successful-delivery test**
+
+For one matching member:
+1. create `BirthdaySmsDelivery` as `PENDING` with `(userId, jalaliYear)`,
+2. call sender,
+3. update that row to `SENT`,
+4. increment/set `attempts` to 1,
+5. set `sentAt`.
+
+- [ ] **Step 3: Write RED concurrent duplicate-claim test**
+
+When `birthdaySmsDelivery.create(...)` throws Prisma `P2002`, assert:
+- sender is never called for that member,
+- result increments `skipped`,
+- processing continues.
+
+This pins the database unique constraint as the concurrency boundary.
+
+- [ ] **Step 4: Write RED provider-failure continuation test**
+
+When one sender call throws:
+- update the already-claimed row to `FAILED`,
+- set attempts to 1,
+- do not delete/recreate the claim,
+- continue to the next member,
+- next member can still become `SENT`.
+
+- [ ] **Step 5: Write RED no-auto-retry test**
+
+If a row already exists for `(userId, jalaliYear)`—including `FAILED` or `PENDING`—normal `processToday()` must skip it rather than sending again. This is the conservative ambiguous-timeout rule for v1.
+
+- [ ] **Step 6: Implement the processor**
+
+Use one atomic `create` as the delivery claim. Do not use a prior `findFirst()` as the only guard.
+
+Catch only `P2002` as "already claimed"; rethrow unexpected database failures.
+
+Isolate delivery failures per member.
+
+- [ ] **Step 7: Verify**
+
+```powershell
+node --test tests/birthday.service.test.js
+```
+
+Expected: all processor tests pass.
+
+- [ ] **Step 8: Commit**
+
+```powershell
+git add backend/src/services/birthday.service.factory.js backend/tests/birthday.service.test.js
+git commit -m "feat: add idempotent birthday processor"
+```
+
+---
+
+### Task 8: Production Wrapper and One-Shot CLI
+
+**Files:**
+- Create: `backend/src/services/birthday.service.js`
+- Create: `backend/src/services/birthday-command.js`
+- Create: `backend/tests/birthday-command.test.js`
+- Create: `backend/scripts/process-birthdays.js`
+
+**Interfaces:**
+- `birthday.service.js` wires real Prisma + real birthday sender.
+- `createBirthdayCommand({ processToday, writeLine }) -> async run()`.
+- `scripts/process-birthdays.js` runs once and exits.
+
+- [ ] **Step 1: Write RED command-success test**
+
+Assert `run()`:
+- calls `processToday()` exactly once,
+- prints only non-sensitive summary counts/date,
+- returns after completion.
+
+- [ ] **Step 2: Write RED fatal-failure test**
+
+When `processToday()` rejects, the thin script entry point must set `process.exitCode = 1`; it must not swallow fatal command failures.
+
+- [ ] **Step 3: Implement command + production wrapper**
+
+`birthday.service.js` loads env before reading provider config.
+
+`process-birthdays.js` must:
+- invoke once,
+- never call `setInterval`, cron, or sleep loops,
+- disconnect Prisma in `finally`.
+
+- [ ] **Step 4: Verify focused command tests**
+
+```powershell
+node --test tests/birthday-command.test.js
+```
+
+Expected: all pass.
+
+- [ ] **Step 5: Run the command with missing birthday SMS config**
+
+Expected: clean non-zero failure explaining birthday delivery configuration is unavailable; no DB rows should be claimed before sender configuration is validated.
+
+- [ ] **Step 6: Commit**
+
+```powershell
+git add backend/src/services/birthday.service.js backend/src/services/birthday-command.js backend/tests/birthday-command.test.js backend/scripts/process-birthdays.js
+git commit -m "feat: add one-shot birthday processing command"
+```
+
+---
+
+### Task 9: Integrated Verification and Local End-to-End Test
+
+**Files:**
+- No new production files expected.
+- Update spec/README only if implementation revealed an operational instruction that must be preserved.
+
+**Interfaces:**
+- Validates the complete feature; does not add new behavior.
+
+- [ ] **Step 1: Backend full suite**
+
+From `backend`:
+
+```powershell
+npm test
+```
+
+Expected: all tests pass.
+
+- [ ] **Step 2: Frontend full suite**
+
+From `frontend`:
+
+```powershell
+npm test
+npm run lint
+npm run build
+```
+
+Expected:
+- all test files pass,
+- 0 lint warnings/errors,
+- production build succeeds.
+
+- [ ] **Step 3: Database verification**
+
+Clear inherited overrides, then:
+
+```powershell
+npx prisma migrate status
+```
+
+Expected: intended `customer_club_db`, all migrations applied, schema up to date.
+
+- [ ] **Step 4: Recreate local test accounts deliberately**
+
+Because Task 4 may remove the pre-birthday disposable accounts:
+- register a MEMBER through the real UI with a valid Jalali birthday,
+- if an ADMIN account is required, recreate/promote it through the already-reviewed local workflow and re-enroll MFA,
+- never stage `backend/scripts/promote-local-admin.js`.
+
+- [ ] **Step 5: Verify MEMBER UI**
+
+Confirm:
+- registration requires birthday,
+- member dashboard displays the expected Persian Jalali birthday.
+
+- [ ] **Step 6: Verify Admin Users**
+
+With ADMIN + MFA:
+- open `/admin/users`,
+- confirm the MEMBER birthday appears in desktop/mobile responsive rendering,
+- confirm ADMIN authorization behavior is unchanged.
+
+- [ ] **Step 7: Verify processor without waiting for a real birthday**
+
+Use the processor service's injected-clock test to simulate a matching Tehran/Jalali date and verify the ledger state transition.
+
+For a live local provider smoke test, use a disposable MEMBER whose birth month/day matches the real current Tehran/Jalali month/day; this avoids adding a production clock override.
+
+Run the one-shot command twice. Expected:
+- first run creates at most one row and, when provider config is valid, one send,
+- second run skips the existing `(userId, jalaliYear)` claim and sends nothing again.
+
+- [ ] **Step 8: Final repository checks**
+
+```powershell
+git status --short --branch
+git diff --check
+```
+
+Expected: no accidental files staged/modified; `backend/scripts/promote-local-admin.js` remains untracked unless separately decided.
+
+- [ ] **Step 9: Final commit if verification/doc corrections exist**
+
+Use a narrow message such as:
+
+```powershell
+git commit -m "test: verify member birthday workflow"
+```
+
+Skip this commit if there are no changes.
+
+---
+
+## Execution Order Summary
+
+1. Jalali utility
+2. Backend registration/session contract
+3. Ready-made Jalali birthday picker + registration UI
+4. Reviewed Prisma migration
+5. Dashboard + Admin Users display
+6. Birthday SMS adapter
+7. Idempotent processor
+8. One-shot CLI
+9. Full/local verification
+
+Do not begin Task 4's local-account deletion step without explicit user approval in the execution conversation.

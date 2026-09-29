@@ -1,7 +1,12 @@
-import { useState } from "react";
+import {
+    useEffect,
+    useState,
+} from "react";
 import { useAuth } from "../auth/AuthContext";
 import loginImage from "../assets/images/hero-slab.jpg";
 import { parseAuthenticatedSession } from "../auth/sessionResponse";
+import { BirthdayDatePicker } from "../components/ui/BirthdayDatePicker";
+import { SixDigitCodeInput } from "../components/ui/SixDigitCodeInput";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -12,11 +17,16 @@ export function LoginPage({
     const [step, setStep] = useState("phone");
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
+    const [autoVerifyEnabled, setAutoVerifyEnabled] =
+        useState(false);
+    const [resendSeconds, setResendSeconds] =
+        useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
+    const [birthday, setBirthday] = useState(null);
     const [mfaChallenge, setMfaChallenge] = useState(null);
     const [mfaCode, setMfaCode] = useState("");
     const {
@@ -25,6 +35,71 @@ export function LoginPage({
         establishSession,
         clearSession,
     } = useAuth();
+
+    useEffect(() => {
+        if (resendSeconds <= 0) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setResendSeconds(
+                (current) =>
+                    Math.max(0, current - 1),
+            );
+        }, 1000);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [resendSeconds]);
+
+    async function handleResendCode() {
+        if (
+            isLoading ||
+            resendSeconds > 0
+        ) {
+            return;
+        }
+
+        setError("");
+        setIsLoading(true);
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/auth/request-code`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        phone,
+                    }),
+                },
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.message ||
+                    "ارسال کد با خطا مواجه شد.",
+                );
+            }
+
+            setCode("");
+            setAutoVerifyEnabled(true);
+            setResendSeconds(120);
+        } catch (requestError) {
+            setError(
+                requestError instanceof Error
+                    ? requestError.message
+                    : "خطایی رخ داد.",
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     async function handleRequestCode(event) {
         event.preventDefault();
@@ -60,7 +135,11 @@ export function LoginPage({
                 );
             }
 
+            setCode("");
+            setAutoVerifyEnabled(true);
+            setResendSeconds(120);
             setStep("code");
+
         } catch (requestError) {
             setError(
                 requestError instanceof Error
@@ -72,14 +151,12 @@ export function LoginPage({
         }
     }
 
-    async function handleVerifyCode(event) {
-        event.preventDefault();
-
+    async function verifySmsCode(rawCode) {
         if (isLoading) return;
 
         setError("");
 
-        const enteredCode = code.trim();
+        const enteredCode = rawCode.trim();
 
         if (!/^\d{6}$/.test(enteredCode)) {
             setError("کد تأیید باید دقیقاً ۶ رقم باشد.");
@@ -130,6 +207,7 @@ export function LoginPage({
 
             if (data.nextStep === "LOGIN") {
                 setCode("");
+                setAutoVerifyEnabled(false);
 
                 try {
                     const loginResult = await loginWithProof(
@@ -168,11 +246,45 @@ export function LoginPage({
             });
 
             setCode("");
+            setAutoVerifyEnabled(false);
         } catch {
             setError("تأیید کد انجام نشد. لطفاً دوباره تلاش کنید.");
         } finally {
             setIsLoading(false);
         }
+    }
+
+    function handleVerifyCode(event) {
+        event.preventDefault();
+
+        void verifySmsCode(code);
+    }
+
+    function handleCodeChange(nextCode) {
+        setCode(nextCode);
+
+        if (error) {
+            setError("");
+        }
+
+        if (
+            autoVerifyEnabled &&
+            nextCode.length === 6 &&
+            step === "code" &&
+            !verification &&
+            !session &&
+            !isLoading
+        ) {
+            setAutoVerifyEnabled(false);
+
+            void verifySmsCode(nextCode);
+        }
+    }
+
+    function handleVerifyCode(event) {
+        event.preventDefault();
+
+        void verifySmsCode(code);
     }
 
     async function handleRegister(event) {
@@ -210,6 +322,11 @@ export function LoginPage({
             return;
         }
 
+        if (!birthday) {
+            setError("لطفاً تاریخ تولد را انتخاب کنید.");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -226,6 +343,9 @@ export function LoginPage({
                         verificationToken: verification.verificationToken,
                         firstName: cleanFirstName,
                         lastName: cleanLastName,
+                        birthYear: birthday?.birthYear,
+                        birthMonth: birthday?.birthMonth,
+                        birthDay: birthday?.birthDay,
                     }),
                 },
             );
@@ -412,6 +532,8 @@ export function LoginPage({
             setVerification(null);
             setPhone("");
             setCode("");
+            setAutoVerifyEnabled(false);
+            setResendSeconds(0);
             setFirstName("");
             setLastName("");
             setStep("phone");
@@ -454,6 +576,8 @@ export function LoginPage({
             setVerification(null);
             setPhone("");
             setCode("");
+            setAutoVerifyEnabled(false);
+            setResendSeconds(0);
             setFirstName("");
             setLastName("");
             setStep("phone");
@@ -462,6 +586,18 @@ export function LoginPage({
         } finally {
             setIsLoading(false);
         }
+    }
+
+    function formatCountdown(seconds) {
+        const minutes =
+            Math.floor(seconds / 60);
+
+        const remainingSeconds =
+            seconds % 60;
+
+        return `${String(minutes).padStart(2, "0")}:${String(
+            remainingSeconds,
+        ).padStart(2, "0")}`;
     }
 
     return (
@@ -614,29 +750,39 @@ export function LoginPage({
                                             کد تأیید به شماره موبایل شما ارسال شد.
                                         </p>
 
-                                        <label
-                                            htmlFor="login-code"
-                                            className="mt-6 mb-3 block text-sm font-semibold text-foreground"
-                                        >
+                                        <p className="mt-6 mb-3 block text-sm font-semibold text-foreground">
                                             کد تأیید
-                                        </label>
+                                        </p>
 
-                                        <input
-                                            id="login-code"
-                                            name="code"
-                                            type="text"
-                                            inputMode="numeric"
-                                            autoComplete="one-time-code"
-                                            dir="ltr"
+                                        <SixDigitCodeInput
                                             value={code}
-                                            onChange={(event) => setCode(event.target.value)}
+                                            onChange={handleCodeChange}
+                                            ariaLabel="کد تأیید"
                                             disabled={isLoading}
-                                            maxLength={6}
-                                            placeholder="123456"
-                                            aria-invalid={Boolean(error)}
-                                            aria-describedby={error ? "code-error" : undefined}
-                                            className="w-full rounded-lg border border-border-strong bg-background px-4 py-3 text-left text-base tracking-[0.3em] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         />
+
+                                        <div className="mt-4 flex items-center justify-center gap-2 text-sm">
+                                            <button
+                                                type="button"
+                                                onClick={handleResendCode}
+                                                disabled={
+                                                    resendSeconds > 0 ||
+                                                    isLoading
+                                                }
+                                                className="font-semibold text-primary disabled:cursor-not-allowed disabled:text-muted-foreground"
+                                            >
+                                                ارسال مجدد کد
+                                            </button>
+
+                                            <span
+                                                dir="ltr"
+                                                className="font-medium text-muted-foreground"
+                                            >
+                                                {formatCountdown(
+                                                    resendSeconds,
+                                                )}
+                                            </span>
+                                        </div>
 
                                         {error && (
                                             <p
@@ -670,30 +816,15 @@ export function LoginPage({
                                             کد ۶ رقمی برنامه احراز هویت خود را وارد کنید.
                                         </p>
 
-                                        <label
-                                            htmlFor="admin-mfa-code"
-                                            className="mt-6 mb-3 block text-sm font-semibold text-foreground"
-                                        >
+                                        <p className="mt-6 mb-3 block text-sm font-semibold text-foreground">
                                             کد احراز هویت
-                                        </label>
+                                        </p>
 
-                                        <input
-                                            id="admin-mfa-code"
-                                            name="mfaCode"
-                                            type="text"
-                                            inputMode="numeric"
-                                            autoComplete="one-time-code"
-                                            dir="ltr"
+                                        <SixDigitCodeInput
                                             value={mfaCode}
-                                            onChange={(event) =>
-                                                setMfaCode(
-                                                    event.target.value,
-                                                )
-                                            }
+                                            onChange={setMfaCode}
+                                            ariaLabel="کد احراز هویت"
                                             disabled={isLoading}
-                                            maxLength={6}
-                                            placeholder="123456"
-                                            className="w-full rounded-lg border border-border-strong bg-background px-4 py-3 text-left text-base tracking-[0.3em] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         />
 
                                         {error && (
@@ -765,6 +896,13 @@ export function LoginPage({
                                             disabled={isLoading}
                                             className="w-full rounded-lg border border-border-strong bg-background px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         />
+
+                                        <div className="mt-5">
+                                            <BirthdayDatePicker
+                                                value={birthday}
+                                                onChange={setBirthday}
+                                            />
+                                        </div>
 
                                         {error && (
                                             <p

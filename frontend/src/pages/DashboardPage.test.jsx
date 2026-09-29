@@ -20,6 +20,9 @@ const memberSession = {
         phone: "09123456789",
         firstName: "سارا",
         lastName: "احمدی",
+        birthYear: 1375,
+        birthMonth: 7,
+        birthDay: 12,
         role: "MEMBER",
         createdAt: "2026-09-16T08:00:00.000Z",
     },
@@ -45,7 +48,7 @@ function renderDashboard(
 }
 
 describe("DashboardPage", () => {
-    it("renders the five requested membership fields", () => {
+    it("renders the six requested membership fields", () => {
         renderDashboard({
             session: memberSession,
             authStatus: "authenticated",
@@ -93,6 +96,14 @@ describe("DashboardPage", () => {
                 "2026-09-16T08:00:00.000Z",
             ),
         ).not.toBeInTheDocument();
+
+        expect(
+            screen.getByText("تاریخ تولد"),
+        ).toBeInTheDocument();
+
+        expect(
+            screen.getByText("۱۲ مهر ۱۳۷۵"),
+        ).toBeInTheDocument();
     });
 
     it("renders the approved dashboard hero and membership card", () => {

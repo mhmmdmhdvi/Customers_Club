@@ -203,6 +203,11 @@ describe("App", () => {
             "/dashboard",
         );
 
+        vi.stubGlobal(
+            "IntersectionObserver",
+            undefined,
+        );
+
         const clearSession = vi.fn();
 
         const fetchMock = vi.fn().mockResolvedValue({
@@ -258,6 +263,20 @@ describe("App", () => {
                 name: "بخش معرفی باشگاه مشتریان",
             }),
         ).toBeInTheDocument();
+
+        const landingHeading =
+            screen.getByRole("heading", {
+                level: 1,
+            });
+
+        await waitFor(() => {
+            expect(
+                landingHeading,
+            ).toHaveAttribute(
+                "data-visible",
+                "true",
+            );
+        });
     });
 
     it("renders the standalone contact page at /contact", () => {

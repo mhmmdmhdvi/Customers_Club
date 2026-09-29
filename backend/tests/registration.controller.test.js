@@ -7,10 +7,18 @@ const { createSessionDb } = require("./helpers/session-db");
 const { createSessionService } = require("../src/services/session.service.factory");
 const { createSessionController } = require("../src/controllers/session.controller.factory");
 const config = { cookie: { name: "club_refresh", secure: false } };
-function access() { return { accessToken: "test-access", expiresIn: 900,
-  accessExpiresAt: new Date(Date.now() + 900_000).toISOString() }; }
-function grant(user) { return { user, ...access(), refreshToken: "b".repeat(64),
-  refreshExpiresAt: new Date(Date.now() + 7 * 86400_000).toISOString() }; }
+function access() {
+  return {
+    accessToken: "test-access", expiresIn: 900,
+    accessExpiresAt: new Date(Date.now() + 900_000).toISOString()
+  };
+}
+function grant(user) {
+  return {
+    user, ...access(), refreshToken: "b".repeat(64),
+    refreshExpiresAt: new Date(Date.now() + 7 * 86400_000).toISOString()
+  };
+}
 
 function response() {
   return {
@@ -24,16 +32,18 @@ function response() {
 }
 function controller(registrationService, sessionService = registrationService) {
   return {
-    ...createAuthController({ otpService: { createOtp: async () => {} }, registrationService }),
+    ...createAuthController({ otpService: { createOtp: async () => { } }, registrationService }),
     ...createSessionController({ sessionService, getConfig: () => config }),
   };
 }
 
 test("verify-code returns proof, normalizes phone, and disables caching", async () => {
   const proof = { nextStep: "REGISTER", authenticated: false, verificationToken: "a".repeat(64), verificationExpiresAt: "2030-01-01T00:00:00.000Z" };
-  const api = controller({ verifyPhone: async (phone, code) => {
-    assert.equal(phone, "09121234567"); assert.equal(code, "123456"); return proof;
-  } });
+  const api = controller({
+    verifyPhone: async (phone, code) => {
+      assert.equal(phone, "09121234567"); assert.equal(code, "123456"); return proof;
+    }
+  });
   const res = response();
   await api.verifyCode({ ip: "192.0.2.1", body: { phone: "+989121234567", code: " 123456 " } }, res);
   assert.equal(res.statusCode, 200);
@@ -50,8 +60,24 @@ test("verify-code keeps the invalid OTP error contract", async () => {
 });
 
 test("register returns created member and authenticated access without exposing refresh token", async () => {
-  const user = { id: 1, phone: "09121234567", firstName: "A", lastName: "B", role: "MEMBER" };
-  const payload = { verificationToken: "a".repeat(64), firstName: "A", lastName: "B" };
+  const user = {
+    id: 1,
+    phone: "09121234567",
+    firstName: "A",
+    lastName: "B",
+    birthYear: 1375,
+    birthMonth: 7,
+    birthDay: 12,
+    role: "MEMBER",
+  };
+  const payload = {
+    verificationToken: "a".repeat(64),
+    firstName: "A",
+    lastName: "B",
+    birthYear: 1375,
+    birthMonth: 7,
+    birthDay: 12,
+  };
   const api = controller({ register: async (data) => { assert.deepEqual(data, payload); return grant(user); } });
   const res = response();
   await api.register({ body: payload }, res);
@@ -78,7 +104,7 @@ for (const [status, message] of [[400, "Invalid or expired verification"], [409,
 }
 
 test("register does not leak unexpected database errors or tokens", async (t) => {
-  const log = t.mock.method(console, "error", () => {});
+  const log = t.mock.method(console, "error", () => { });
   const api = controller({ register: async () => { throw new Error("database password and private token"); } });
   const res = response();
   await api.register({ body: {} }, res);
@@ -96,7 +122,14 @@ test("verified-phone controller-to-service flow creates one member with a fake t
   await api.verifyCode({ ip: "192.0.2.1", body: { phone: "+989121234567", code: "123456" } }, verified);
   assert.equal(verified.statusCode, 200);
   assert.equal(verified.body.nextStep, "REGISTER");
-  const payload = { verificationToken: verified.body.verificationToken, firstName: "خسرو", lastName: "وفایی" };
+  const payload = {
+    verificationToken: verified.body.verificationToken,
+    firstName: "خسرو",
+    lastName: "وفایی",
+    birthYear: 1300,
+    birthMonth: 1,
+    birthDay: 1,
+  };
   const registered = response();
   await api.register({ body: payload }, registered);
   assert.equal(registered.statusCode, 201);
