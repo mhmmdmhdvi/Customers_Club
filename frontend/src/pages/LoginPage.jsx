@@ -24,6 +24,8 @@ export function LoginPage({
     const [resendSeconds, setResendSeconds] =
         useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [isRequestingCode, setIsRequestingCode] =
+        useState(false);
     const [error, setError] = useState("");
     const [verification, setVerification] = useState(null);
     const [firstName, setFirstName] = useState("");
@@ -37,6 +39,8 @@ export function LoginPage({
         establishSession,
         clearSession,
     } = useAuth();
+    const [pendingWebOtpCode, setPendingWebOtpCode] =
+        useState("");
 
     useEffect(() => {
         if (resendSeconds <= 0) {
@@ -55,9 +59,99 @@ export function LoginPage({
         };
     }, [resendSeconds]);
 
+    useEffect(() => {
+        if (
+            step !== "code" ||
+            verification ||
+            session ||
+            !("OTPCredential" in globalThis) ||
+            typeof navigator.credentials?.get !==
+            "function"
+        ) {
+            return;
+        }
+
+        const controller =
+            new AbortController();
+
+        let isCurrent = true;
+
+        navigator.credentials
+            .get({
+                otp: {
+                    transport: ["sms"],
+                },
+                signal: controller.signal,
+            })
+            .then((credential) => {
+                if (!isCurrent) {
+                    return;
+                }
+
+                const receivedCode =
+                    credential?.code;
+
+                if (
+                    typeof receivedCode === "string" &&
+                    /^\d{6}$/.test(receivedCode)
+                ) {
+                    setCode(receivedCode);
+                    setPendingWebOtpCode(
+                        receivedCode,
+                    );
+                }
+            })
+            .catch(() => {
+                // WebOTP is optional.
+                // Manual code entry still works.
+            });
+
+        return () => {
+            isCurrent = false;
+            controller.abort();
+        };
+    }, [
+        step,
+        verification,
+        session,
+    ]);
+
+    useEffect(() => {
+        if (
+            !pendingWebOtpCode ||
+            isRequestingCode ||
+            !autoVerifyEnabled ||
+            isLoading ||
+            step !== "code" ||
+            verification ||
+            session
+        ) {
+            return;
+        }
+
+        const receivedCode =
+            pendingWebOtpCode;
+
+        setPendingWebOtpCode("");
+        setAutoVerifyEnabled(false);
+
+        void verifySmsCode(
+            receivedCode,
+        );
+    }, [
+        pendingWebOtpCode,
+        isRequestingCode,
+        autoVerifyEnabled,
+        isLoading,
+        step,
+        verification,
+        session,
+    ]);
+
     async function handleResendCode() {
         if (
             isLoading ||
+            isRequestingCode ||
             resendSeconds > 0
         ) {
             return;
@@ -92,6 +186,11 @@ export function LoginPage({
             setCode("");
             setAutoVerifyEnabled(true);
             setResendSeconds(120);
+
+            toast.success(
+                "کد تأیید به شماره موبایل شما ارسال شد.",
+            );
+
         } catch (requestError) {
             setError(
                 requestError instanceof Error
@@ -109,11 +208,18 @@ export function LoginPage({
         setError("");
 
         if (!/^09\d{9}$/.test(phone)) {
-            setError("لطفاً یک شماره موبایل معتبر وارد کنید.");
+            setError(
+                "لطفاً یک شماره موبایل معتبر وارد کنید.",
+            );
             return;
         }
 
-        setIsLoading(true);
+        setPendingWebOtpCode("");
+        setCode("");
+        setAutoVerifyEnabled(false);
+        setResendSeconds(0);
+        setStep("code");
+        setIsRequestingCode(true);
 
         try {
             const response = await fetch(
@@ -121,7 +227,8 @@ export function LoginPage({
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
+                        "Content-Type":
+                            "application/json",
                     },
                     body: JSON.stringify({
                         phone,
@@ -133,28 +240,39 @@ export function LoginPage({
 
             if (!response.ok) {
                 throw new Error(
-                    data.message || "ارسال کد با خطا مواجه شد.",
+                    data.message ||
+                    "ارسال کد با خطا مواجه شد.",
                 );
             }
 
-            setCode("");
             setAutoVerifyEnabled(true);
             setResendSeconds(120);
-            setStep("code");
 
+            toast.success(
+                "کد تأیید به شماره موبایل شما ارسال شد.",
+            );
         } catch (requestError) {
+            setPendingWebOtpCode("");
+            setAutoVerifyEnabled(false);
+            setResendSeconds(0);
+
             setError(
                 requestError instanceof Error
                     ? requestError.message
                     : "خطایی رخ داد.",
             );
         } finally {
-            setIsLoading(false);
+            setIsRequestingCode(false);
         }
     }
 
     async function verifySmsCode(rawCode) {
-        if (isLoading) return;
+        if (
+            isLoading ||
+            isRequestingCode
+        ) {
+            return;
+        }
 
         setError("");
 
@@ -518,49 +636,6 @@ export function LoginPage({
         }
     }
 
-    async function handleResetSession() {
-        if (isLoading) return;
-
-        setError("");
-        setIsLoading(true);
-
-        try {
-            const response = await fetch(
-                `${API_BASE_URL}/auth/logout`,
-                {
-                    method: "POST",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-Protection": "1",
-                    },
-                    body: JSON.stringify({}),
-                },
-            );
-
-            if (response.status !== 204) {
-                throw new Error("Session reset was not confirmed");
-            }
-
-            clearSession();
-
-            setVerification(null);
-            setPhone("");
-            setCode("");
-            setAutoVerifyEnabled(false);
-            setResendSeconds(0);
-            setFirstName("");
-            setLastName("");
-            setStep("phone");
-        } catch {
-            setError(
-                "شروع دوباره ورود تأیید نشد. لطفاً دوباره تلاش کنید.",
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    }
-
     async function handleLogout() {
         if (isLoading || !session) return;
 
@@ -681,37 +756,6 @@ export function LoginPage({
                             >
                                 در حال بررسی وضعیت ورود...
                             </div>
-                        ) : authStatus === "error" ? (
-                            <div className="mt-8">
-                                <p
-                                    role="alert"
-                                    className="text-sm leading-7 text-red-600"
-                                >
-                                    بررسی وضعیت ورود انجام نشد.
-                                </p>
-
-                                <p className="mt-2 text-sm leading-7 text-muted-foreground">
-                                    برای ورود دوباره، ابتدا نشست قبلی را با خیال راحت ببندید.
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={handleResetSession}
-                                    disabled={isLoading}
-                                    className="mt-6 rounded-full bg-primary px-10 py-3 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isLoading ? "در حال آماده‌سازی..." : "ورود دوباره"}
-                                </button>
-
-                                {error ? (
-                                    <p
-                                        role="alert"
-                                        className="mt-4 text-sm text-red-600"
-                                    >
-                                        {error}
-                                    </p>
-                                ) : null}
-                            </div>
                         ) : step === "phone" && !session ? (
                             <form
                                 onSubmit={handleRequestCode}
@@ -764,9 +808,6 @@ export function LoginPage({
                             <div className="mt-8">
                                 {step === "code" && !verification && !session && (
                                     <form onSubmit={handleVerifyCode} noValidate>
-                                        <p className="text-sm leading-7 text-muted-foreground">
-                                            کد تأیید به شماره موبایل شما ارسال شد.
-                                        </p>
 
                                         <p className="mt-6 mb-3 block text-sm font-semibold text-foreground">
                                             کد تأیید
@@ -785,7 +826,8 @@ export function LoginPage({
                                                 onClick={handleResendCode}
                                                 disabled={
                                                     resendSeconds > 0 ||
-                                                    isLoading
+                                                    isLoading ||
+                                                    isRequestingCode
                                                 }
                                                 className="font-semibold text-primary disabled:cursor-not-allowed disabled:text-muted-foreground"
                                             >

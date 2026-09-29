@@ -257,7 +257,7 @@ it("waits for session restoration before showing the phone form", async () => {
     ).toBeInTheDocument();
 });
 
-it("does not show the login form when session restoration fails ambiguously", async () => {
+it("silently falls back to the phone form when session restoration fails", async () => {
     vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue({
@@ -273,14 +273,20 @@ it("does not show the login form when session restoration fails ambiguously", as
     );
 
     expect(
-        await screen.findByRole("alert"),
-    ).toHaveTextContent(
-        "بررسی وضعیت ورود انجام نشد.",
-    );
+        await screen.findByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+    ).toBeInTheDocument();
 
     expect(
-        screen.queryByRole("textbox", {
-            name: "شماره موبایل",
+        screen.queryByText(
+            "بررسی وضعیت ورود انجام نشد.",
+        ),
+    ).not.toBeInTheDocument();
+
+    expect(
+        screen.queryByRole("button", {
+            name: "ورود دوباره",
         }),
     ).not.toBeInTheDocument();
 });
@@ -767,121 +773,6 @@ it("logs out and returns to an empty phone-number form", async () => {
 
     expect(JSON.parse(options.body)).toEqual({});
     expect(logoutJson).not.toHaveBeenCalled();
-});
-
-it("resets the session before allowing sign-in again after a restoration error", async () => {
-    const logoutJson = vi.fn();
-
-    const fetchMock = vi
-        .fn()
-        // Initial restoration fails ambiguously.
-        .mockResolvedValueOnce({
-            ok: false,
-            status: 503,
-        })
-        // Explicit recovery logout succeeds with no body.
-        .mockResolvedValueOnce({
-            ok: true,
-            status: 204,
-            json: logoutJson,
-        });
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderWithProviders(
-        <AuthProvider>
-            <LoginPage />
-        </AuthProvider>,
-    );
-
-    expect(
-        await screen.findByRole("alert"),
-    ).toHaveTextContent(
-        "بررسی وضعیت ورود انجام نشد.",
-    );
-
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "ورود دوباره",
-        }),
-    );
-
-    expect(
-        await screen.findByRole("textbox", {
-            name: "شماره موبایل",
-        }),
-    ).toBeInTheDocument();
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    const [url, options] = fetchMock.mock.calls[1];
-
-    expect(url).toMatch(/\/auth\/logout$/);
-
-    expect(options).toEqual(
-        expect.objectContaining({
-            method: "POST",
-            credentials: "include",
-            headers: expect.objectContaining({
-                "Content-Type": "application/json",
-                "X-CSRF-Protection": "1",
-            }),
-        }),
-    );
-
-    expect(JSON.parse(options.body)).toEqual({});
-    expect(logoutJson).not.toHaveBeenCalled();
-});
-
-it("keeps the restoration error when session reset is not confirmed", async () => {
-    const fetchMock = vi
-        .fn()
-        // Initial restoration fails ambiguously.
-        .mockResolvedValueOnce({
-            ok: false,
-            status: 503,
-        })
-        // Explicit recovery logout also fails.
-        .mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-        });
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderWithProviders(
-        <AuthProvider>
-            <LoginPage />
-        </AuthProvider>,
-    );
-
-    expect(
-        await screen.findByText("بررسی وضعیت ورود انجام نشد."),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-        screen.getByRole("button", {
-            name: "ورود دوباره",
-        }),
-    );
-
-    expect(
-        await screen.findByText(
-            "شروع دوباره ورود تأیید نشد. لطفاً دوباره تلاش کنید.",
-        ),
-    ).toBeInTheDocument();
-
-    expect(
-        screen.queryByRole("textbox", {
-            name: "شماره موبایل",
-        }),
-    ).not.toBeInTheDocument();
-
-    expect(
-        localStorage.getItem("club-auth-refresh-blocked"),
-    ).toBe("1");
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
 it("shows the authenticator-code step when ADMIN login requires MFA", async () => {
@@ -1782,4 +1673,224 @@ it("enables resend after two minutes and requests a fresh code", async () => {
     expect(
         screen.getByText("02:00"),
     ).toBeInTheDocument();
+});
+
+it("shows the code inputs immediately while the SMS request is pending", async () => {
+    let resolveRequest;
+
+    const pendingRequest =
+        new Promise((resolve) => {
+            resolveRequest = resolve;
+        });
+
+    const fetchMock = vi
+        .fn()
+        .mockReturnValue(
+            pendingRequest,
+        );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: "09123456789",
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    const codeInputs =
+        screen.getAllByRole(
+            "textbox",
+            {
+                name: /کد تأیید/,
+            },
+        );
+
+    expect(codeInputs).toHaveLength(6);
+
+    codeInputs.forEach((input) => {
+        expect(input).toBeEnabled();
+    });
+
+    // While FarazSMS is still pending,
+    // there should be no "sent" confirmation yet.
+    expect(
+        screen.queryByText(
+            "کد تأیید به شماره موبایل شما ارسال شد.",
+        ),
+    ).not.toBeInTheDocument();
+
+    resolveRequest({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            message: "Code sent",
+        }),
+    });
+
+    // Only after the backend confirms success
+    // should the success toast appear.
+    expect(
+        await screen.findByText(
+            "کد تأیید به شماره موبایل شما ارسال شد.",
+        ),
+    ).toBeInTheDocument();
+});
+
+it("uses WebOTP to fill and automatically verify the SMS code", async () => {
+    const phone = "09123456789";
+    const code = "123456";
+
+    let resolveOtpCredential;
+
+    const otpCredentialPromise =
+        new Promise((resolve) => {
+            resolveOtpCredential = resolve;
+        });
+
+    const credentialsGet = vi
+        .fn()
+        .mockReturnValue(
+            otpCredentialPromise,
+        );
+
+    const webOtpNavigator =
+        Object.create(navigator);
+
+    Object.defineProperty(
+        webOtpNavigator,
+        "credentials",
+        {
+            configurable: true,
+            value: {
+                get: credentialsGet,
+            },
+        },
+    );
+
+    vi.stubGlobal(
+        "navigator",
+        webOtpNavigator,
+    );
+
+    vi.stubGlobal(
+        "OTPCredential",
+        function OTPCredential() { },
+    );
+
+    const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "Code sent",
+            }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                message: "OTP verified",
+                authenticated: false,
+                nextStep: "REGISTER",
+                verificationToken:
+                    "a".repeat(64),
+                verificationExpiresAt:
+                    new Date(
+                        Date.now() +
+                        5 * 60 * 1000,
+                    ).toISOString(),
+            }),
+        });
+
+    vi.stubGlobal(
+        "fetch",
+        fetchMock,
+    );
+
+    await renderLoginPage();
+
+    fireEvent.change(
+        screen.getByRole("textbox", {
+            name: "شماره موبایل",
+        }),
+        {
+            target: {
+                value: phone,
+            },
+        },
+    );
+
+    fireEvent.click(
+        screen.getByRole("button", {
+            name: "دریافت کد تأیید",
+        }),
+    );
+
+    await waitFor(() => {
+        expect(
+            credentialsGet,
+        ).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+        credentialsGet,
+    ).toHaveBeenCalledWith(
+        expect.objectContaining({
+            otp: {
+                transport: ["sms"],
+            },
+            signal: expect.any(
+                AbortSignal,
+            ),
+        }),
+    );
+
+    await act(async () => {
+        resolveOtpCredential({
+            code,
+        });
+    });
+
+    expect(
+        await screen.findByRole(
+            "textbox",
+            {
+                name: "نام",
+            },
+        ),
+    ).toBeInTheDocument();
+
+    expect(
+        fetchMock,
+    ).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(
+            /\/auth\/verify-code$/,
+        ),
+        expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+                phone,
+                code,
+            }),
+        }),
+    );
 });

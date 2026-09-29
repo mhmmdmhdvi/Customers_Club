@@ -122,4 +122,32 @@ describe("SixDigitCodeInput", () => {
             "123456",
         );
     });
+
+    it("accepts a complete six-digit code from browser autofill", () => {
+        const onChange = vi.fn();
+
+        render(
+            <SixDigitCodeInput
+                value=""
+                onChange={onChange}
+                ariaLabel="کد تأیید"
+            />,
+        );
+
+        const inputs =
+            screen.getAllByRole("textbox");
+
+        fireEvent.change(
+            inputs[0],
+            {
+                target: {
+                    value: "123456",
+                },
+            },
+        );
+
+        expect(onChange).toHaveBeenCalledWith(
+            "123456",
+        );
+    });
 });
