@@ -29,6 +29,14 @@ export function SixDigitCodeInput({
             return;
         }
 
+        // Browser / OS OTP autofill may place the
+        // complete code into the first input at once.
+        if (/^\d{6}$/.test(rawValue)) {
+            onChange(rawValue);
+            focusInput(5);
+            return;
+        }
+
         const nextDigit =
             rawValue.slice(-1);
 
