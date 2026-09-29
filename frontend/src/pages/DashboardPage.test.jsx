@@ -1,5 +1,5 @@
 import {
-    render,
+    render as rtlRender,
     screen,
     waitFor,
     within,
@@ -10,7 +10,7 @@ import {
     it,
     vi,
 } from "vitest";
-
+import { ToastProvider } from "../components/ui/ToastProvider";
 import { AuthContext } from "../auth/AuthContext";
 import { DashboardPage } from "./DashboardPage";
 
@@ -30,6 +30,14 @@ const memberSession = {
     tokenType: "Bearer",
     accessExpiresAt: "2026-09-16T10:15:00.000Z",
 };
+
+function render(ui) {
+    return rtlRender(
+        <ToastProvider>
+            {ui}
+        </ToastProvider>,
+    );
+}
 
 function renderDashboard(
     authValue,

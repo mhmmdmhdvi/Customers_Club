@@ -5,7 +5,7 @@ import {
     Menu,
     X,
 } from "lucide-react";
-
+import { useToast } from "../ui/ToastContext";
 import { useAuth } from "../../auth/AuthContext";
 import megatiteMark from "../../assets/branding/megatite-mark.svg";
 
@@ -23,7 +23,7 @@ export function SiteHeader({
     onLoggedOut = () => { },
 }) {
     const auth = useAuth();
-
+    const toast = useToast();
     const session = auth?.session ?? null;
     const clearSession = auth?.clearSession;
 
@@ -87,6 +87,11 @@ export function SiteHeader({
             }
 
             clearSession();
+
+            toast.success(
+                "با موفقیت از حساب خارج شدید.",
+            );
+
             closeMenu();
             onLoggedOut();
         } finally {

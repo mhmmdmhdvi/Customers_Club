@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoginPage } from "./LoginPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth } from "../auth/AuthContext";
+import { ToastProvider } from "../components/ui/ToastProvider";
 
 vi.mock("../components/ui/BirthdayDatePicker", () => ({
     BirthdayDatePicker: ({ value, onChange }) => (
@@ -44,6 +45,14 @@ const sharedSession = {
         Date.now() + 15 * 60 * 1000,
     ).toISOString(),
 };
+
+function renderWithProviders(ui) {
+    return render(
+        <ToastProvider>
+            {ui}
+        </ToastProvider>,
+    );
+}
 
 function SharedSessionSetter() {
     const { establishSession } = useAuth();
@@ -84,7 +93,7 @@ function renderWithUnauthenticatedRefresh(ui) {
         }),
     );
 
-    return render(ui);
+    return renderWithProviders(ui);
 }
 
 async function renderLoginPage(props = {}) {
@@ -224,7 +233,7 @@ it("waits for session restoration before showing the phone form", async () => {
         }),
     );
 
-    render(
+    renderWithProviders(
         <AuthProvider>
             <LoginPage />
         </AuthProvider>,
@@ -257,7 +266,7 @@ it("does not show the login form when session restoration fails ambiguously", as
         }),
     );
 
-    render(
+    renderWithProviders(
         <AuthProvider>
             <LoginPage />
         </AuthProvider>,
@@ -439,6 +448,7 @@ it("registers a new member and shows a signed-in confirmation", async () => {
     const registerButton = screen.getByRole("button", {
         name: "تکمیل ثبت‌نام",
     });
+
     expect(registerButton).toBeEnabled();
 
     fireEvent.click(registerButton);
@@ -464,6 +474,12 @@ it("registers a new member and shows a signed-in confirmation", async () => {
     ).toBeInTheDocument();
 
     expect(screen.getByText("علی احمدی")).toBeInTheDocument();
+
+    expect(
+        await screen.findByText(
+            "عضویت شما با موفقیت انجام شد.",
+        ),
+    ).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
@@ -582,6 +598,12 @@ it("logs in an existing member without showing registration fields", async () =>
     expect(
         screen.queryByRole("textbox", { name: "نام خانوادگی" }),
     ).not.toBeInTheDocument();
+
+    expect(
+        await screen.findByText(
+            "ورود با موفقیت انجام شد.",
+        ),
+    ).toBeInTheDocument();
 
     // An existing member must not be told that a new account was created.
     expect(
@@ -706,6 +728,12 @@ it("logs out and returns to an empty phone-number form", async () => {
         screen.getByRole("button", { name: "خروج از حساب" }),
     );
 
+    expect(
+        await screen.findByText(
+            "با موفقیت از حساب خارج شدید.",
+        ),
+    ).toBeInTheDocument();
+
     // The form should return, with the previous phone number cleared.
     expect(
         await screen.findByRole("textbox", { name: "شماره موبایل" }),
@@ -760,7 +788,7 @@ it("resets the session before allowing sign-in again after a restoration error",
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithProviders(
         <AuthProvider>
             <LoginPage />
         </AuthProvider>,
@@ -821,7 +849,7 @@ it("keeps the restoration error when session reset is not confirmed", async () =
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
+    renderWithProviders(
         <AuthProvider>
             <LoginPage />
         </AuthProvider>,
@@ -1078,6 +1106,12 @@ it("completes ADMIN login with the authenticator code", async () => {
             name: "تأیید احراز هویت",
         }),
     );
+
+    expect(
+        await screen.findByText(
+            "ورود با موفقیت انجام شد.",
+        ),
+    ).toBeInTheDocument();
 
     expect(
         await screen.findByRole("heading", {

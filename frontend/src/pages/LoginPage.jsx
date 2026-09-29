@@ -7,6 +7,7 @@ import loginImage from "../assets/images/hero-slab.jpg";
 import { parseAuthenticatedSession } from "../auth/sessionResponse";
 import { BirthdayDatePicker } from "../components/ui/BirthdayDatePicker";
 import { SixDigitCodeInput } from "../components/ui/SixDigitCodeInput";
+import { useToast } from "../components/ui/ToastContext";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -14,6 +15,7 @@ const API_BASE_URL =
 export function LoginPage({
     onAuthenticated = () => { },
 }) {
+    const toast = useToast();
     const [step, setStep] = useState("phone");
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
@@ -226,6 +228,11 @@ export function LoginPage({
                     }
 
                     establishSession(loginResult);
+
+                    toast.success(
+                        "ورود با موفقیت انجام شد.",
+                    );
+
                     setVerification(null);
                     onAuthenticated();
                 } catch {
@@ -376,6 +383,10 @@ export function LoginPage({
 
             establishSession(nextSession);
 
+            toast.success(
+                "عضویت شما با موفقیت انجام شد.",
+            );
+
             // The registration proof has now served its purpose.
             setVerification(null);
             setFirstName("");
@@ -490,6 +501,10 @@ export function LoginPage({
                 nextSession,
             );
 
+            toast.success(
+                "ورود با موفقیت انجام شد.",
+            );
+
             setMfaChallenge(null);
             setMfaCode("");
 
@@ -573,6 +588,9 @@ export function LoginPage({
             // Successful logout has no JSON response body.
             // Clear the session and reset the form.
             clearSession();
+            toast.success(
+                "با موفقیت از حساب خارج شدید.",
+            );
             setVerification(null);
             setPhone("");
             setCode("");
