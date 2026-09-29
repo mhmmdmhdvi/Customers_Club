@@ -16,7 +16,18 @@ import {
 import { AuthContext } from "../../auth/AuthContext";
 import { SiteHeader } from "./SiteHeader";
 
+const toastSuccess = vi.fn();
+
+vi.mock("../ui/ToastContext", () => ({
+    useToast: () => ({
+        success: toastSuccess,
+        error: vi.fn(),
+        warning: vi.fn(),
+    }),
+}));
+
 afterEach(() => {
+    toastSuccess.mockClear();
     vi.unstubAllGlobals();
     window.history.replaceState({}, "", "/");
 });
@@ -319,6 +330,12 @@ describe("SiteHeader", () => {
         await waitFor(() => {
             expect(fetchMock).toHaveBeenCalledTimes(1);
         });
+
+        expect(
+            toastSuccess,
+        ).toHaveBeenCalledWith(
+            "با موفقیت از حساب خارج شدید.",
+        );
 
         const [url, options] = fetchMock.mock.calls[0];
 

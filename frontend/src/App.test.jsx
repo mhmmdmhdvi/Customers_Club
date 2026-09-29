@@ -1,6 +1,6 @@
 import {
     fireEvent,
-    render,
+    render as rtlRender,
     screen,
     waitFor,
     within,
@@ -15,6 +15,14 @@ import {
 import { AuthContext } from "./auth/AuthContext";
 import App from "./App";
 import { ToastProvider } from "./components/ui/ToastProvider";
+
+function render(ui) {
+    return rtlRender(
+        <ToastProvider>
+            {ui}
+        </ToastProvider>,
+    );
+}
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -282,11 +290,7 @@ describe("App", () => {
     it("renders the standalone contact page at /contact", () => {
         window.history.replaceState({}, "", "/contact");
 
-        render(
-            <ToastProvider>
-                <App />
-            </ToastProvider>,
-        );
+        render(<App />);
 
         expect(
             screen.getByRole("heading", {
