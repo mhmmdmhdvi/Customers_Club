@@ -6,10 +6,35 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const testSessionID = "122a8f89-1f56-4b08-85a7-384fb07d61e8"
 
+func signTestToken(
+	t *testing.T,
+	secret []byte,
+	claims jwt.MapClaims,
+	method jwt.SigningMethod,
+) string {
+	t.Helper()
+	token := jwt.NewWithClaims(
+		method,
+		claims,
+	)
+	token.Header["typ"] = "JWT"
+	signed, err :=
+		token.SignedString(secret)
+
+	if err != nil {
+		t.Fatalf(
+			"sign test token: %v",
+			err,
+		)
+	}
+	return signed
+}
 func TestIssueCreatesMinimalAccessToken(t *testing.T) {
 	secret := []byte(
 		"12345678901234567890123456789012",
@@ -255,6 +280,229 @@ func TestIssueRejectsInvalidIdentity(t *testing.T) {
 					)
 				}
 			},
+		)
+	}
+}
+func TestVerifyRejectsInvalidClaims(t *testing.T) {
+	secret := []byte(
+		"12345678901234567890123456789012",
+	)
+
+	tokens, err := New(Config{
+		Secret:           secret,
+		Issuer:           "test-api",
+		Audience:         "test-web",
+		AccessTTLSeconds: 900,
+		Now: func() time.Time {
+			return time.Unix(1000, 0)
+		},
+	})
+
+	if err != nil {
+		t.Fatalf(
+			"create token service: %v",
+			err,
+		)
+	}
+
+	baseClaims := func() jwt.MapClaims {
+		return jwt.MapClaims{
+			"sid":      testSessionID,
+			"tokenUse": "access",
+			"iss":      "test-api",
+			"aud":      "test-web",
+			"sub":      "1",
+			"iat":      int64(1000),
+			"exp":      int64(1900),
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(jwt.MapClaims)
+	}{
+		{
+			name: "wrong issuer",
+			mutate: func(c jwt.MapClaims) {
+				c["iss"] = "other"
+			},
+		},
+		{
+			name: "wrong audience",
+			mutate: func(c jwt.MapClaims) {
+				c["aud"] = "other"
+			},
+		},
+		{
+			name: "wrong token use",
+			mutate: func(c jwt.MapClaims) {
+				c["tokenUse"] = "refresh"
+			},
+		},
+		{
+			name: "zero subject",
+			mutate: func(c jwt.MapClaims) {
+				c["sub"] = "0"
+			},
+		},
+		{
+			name: "leading zero subject",
+			mutate: func(c jwt.MapClaims) {
+				c["sub"] = "01"
+			},
+		},
+		{
+			name: "unsafe subject",
+			mutate: func(c jwt.MapClaims) {
+				c["sub"] =
+					"9007199254740992"
+			},
+		},
+		{
+			name: "bad session id",
+			mutate: func(c jwt.MapClaims) {
+				c["sid"] =
+					"not-a-session"
+			},
+		},
+		{
+			name: "future issued at",
+			mutate: func(c jwt.MapClaims) {
+				c["iat"] = int64(1001)
+			},
+		},
+		{
+			name: "expired",
+			mutate: func(c jwt.MapClaims) {
+				c["exp"] = int64(1000)
+			},
+		},
+		{
+			name: "overlong lifetime",
+			mutate: func(c jwt.MapClaims) {
+				c["exp"] = int64(1901)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				claims := baseClaims()
+				tt.mutate(claims)
+
+				raw := signTestToken(
+					t,
+					secret,
+					claims,
+					jwt.SigningMethodHS256,
+				)
+
+				if _, err :=
+					tokens.Verify(raw); err == nil {
+					t.Fatal(
+						"expected token verification to fail",
+					)
+				}
+			},
+		)
+	}
+}
+func TestVerifyRejectsWrongAlgorithmAndTampering(t *testing.T) {
+	secret := []byte(
+		"12345678901234567890123456789012",
+	)
+
+	tokens, err := New(Config{
+		Secret:           secret,
+		Issuer:           "test-api",
+		Audience:         "test-web",
+		AccessTTLSeconds: 900,
+		Now: func() time.Time {
+			return time.Unix(1000, 0)
+		},
+	})
+
+	if err != nil {
+		t.Fatalf(
+			"create token service: %v",
+			err,
+		)
+	}
+
+	claims := jwt.MapClaims{
+		"sid":      testSessionID,
+		"tokenUse": "access",
+		"iss":      "test-api",
+		"aud":      "test-web",
+		"sub":      "1",
+		"iat":      int64(1000),
+		"exp":      int64(1900),
+	}
+
+	for _, method := range []jwt.SigningMethod{
+		jwt.SigningMethodHS384,
+		jwt.SigningMethodHS512,
+	} {
+		raw := signTestToken(
+			t,
+			secret,
+			claims,
+			method,
+		)
+
+		if _, err := tokens.Verify(raw); err == nil {
+			t.Fatalf(
+				"expected algorithm %s to be rejected",
+				method.Alg(),
+			)
+		}
+	}
+
+	wrongSecret := []byte(
+		"abcdefghijklmnopqrstuvwxyzABCDEF",
+	)
+
+	rawWrongKey := signTestToken(
+		t,
+		wrongSecret,
+		claims,
+		jwt.SigningMethodHS256,
+	)
+
+	if _, err := tokens.Verify(rawWrongKey); err == nil {
+		t.Fatal(
+			"expected token signed with another key to fail",
+		)
+	}
+
+	valid := signTestToken(
+		t,
+		secret,
+		claims,
+		jwt.SigningMethodHS256,
+	)
+
+	parts := strings.Split(valid, ".")
+
+	payload := []byte(
+		`{"sid":"122a8f89-1f56-4b08-85a7-384fb07d61e8","tokenUse":"access","iss":"test-api","aud":"test-web","sub":"2","iat":1000,"exp":1900}`,
+	)
+
+	parts[1] =
+		base64.RawURLEncoding.EncodeToString(
+			payload,
+		)
+
+	tampered := strings.Join(
+		parts,
+		".",
+	)
+
+	if _, err := tokens.Verify(tampered); err == nil {
+		t.Fatal(
+			"expected tampered JWT to fail",
 		)
 	}
 }
