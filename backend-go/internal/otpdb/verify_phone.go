@@ -9,8 +9,7 @@ import (
 )
 
 var ErrInvalidOTP = errors.New("invalid OTP")
-
-var errActiveVerificationNotImplemented = errors.New("ACTIVE OTP verification not implemented yet")
+var ErrOTPExpired = errors.New("OTP expired")
 
 type OnVerifiedFunc func(
 	ctx context.Context,
@@ -123,11 +122,51 @@ func VerifyPhoneOTP(
 					return nil
 				}
 
-				// Expired or exhausted OTP handling will
-				// be completed in the next TDD steps.
-				if !otp.ExpiresAt.After(now) ||
-					otp.FailedAttempts >= 5 {
-					return errActiveVerificationNotImplemented
+				if !otp.ExpiresAt.After(now) {
+					// Record a phone-level failure.
+					// Do not increment the expired OTP's counter.
+					if err := RecordVerificationFailure(
+						ctx,
+						tx,
+						secret,
+						phone,
+						budget.Events,
+						now,
+						nil,
+					); err != nil {
+						return err
+					}
+
+					phoneWait := phoneWaitAfterFailure(
+						budget.Events,
+						now,
+					)
+
+					if phoneWait > 0 {
+						rejection = &RateLimitError{
+							RetryAfter: phoneWait,
+						}
+					} else {
+						rejection = ErrOTPExpired
+					}
+
+					// Commit the failure event before returning.
+					return nil
+				}
+
+				// An OTP with five failed attempts cannot
+				// be verified again, even with the correct code.
+				if otp.FailedAttempts >= 5 {
+					retryAfter := ceilSeconds(
+						otp.ExpiresAt.Sub(now),
+					)
+
+					rejection = &RateLimitError{
+						RetryAfter: retryAfter,
+					}
+
+					// Commit without changing failure counters.
+					return nil
 				}
 
 				// The OTP exists and is unexpired, but
@@ -146,10 +185,36 @@ func VerifyPhoneOTP(
 					return err
 				}
 
-				// Return the rejection only after
-				// the transaction has committed.
-				rejection = ErrInvalidOTP
+				phoneWait := phoneWaitAfterFailure(
+					budget.Events,
+					now,
+				)
 
+				// Calculate the individual OTP lockout.
+				// FailedAttempts is the value BEFORE this request.
+				otpWait := 0
+
+				if otp.FailedAttempts+1 >= 5 {
+					otpWait = ceilSeconds(
+						otp.ExpiresAt.Sub(now),
+					)
+				}
+
+				// Apply whichever restriction lasts longer.
+				retryAfter := maxInt(
+					phoneWait,
+					otpWait,
+				)
+
+				if retryAfter > 0 {
+					rejection = &RateLimitError{
+						RetryAfter: retryAfter,
+					}
+				} else {
+					rejection = ErrInvalidOTP
+				}
+
+				// Commit the failure counters before returning.
 				return nil
 			}
 
@@ -165,8 +230,20 @@ func VerifyPhoneOTP(
 				return err
 			}
 
-			rejection = ErrInvalidOTP
+			phoneWait := phoneWaitAfterFailure(
+				budget.Events,
+				now,
+			)
 
+			if phoneWait > 0 {
+				rejection = &RateLimitError{
+					RetryAfter: phoneWait,
+				}
+			} else {
+				rejection = ErrInvalidOTP
+			}
+
+			// Commit the failure event before returning.
 			return nil
 		},
 	)
@@ -176,4 +253,21 @@ func VerifyPhoneOTP(
 	}
 
 	return rejection
+}
+
+func phoneWaitAfterFailure(
+	events []time.Time,
+	now time.Time,
+) int {
+	updatedEvents := append(
+		append([]time.Time(nil), events...),
+		now,
+	)
+
+	return WaitFor(
+		updatedEvents,
+		verificationFailureLimit,
+		phoneQuarterWindow,
+		now,
+	)
 }
