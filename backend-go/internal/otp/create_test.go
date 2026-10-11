@@ -391,6 +391,24 @@ func TestCreateDeliversOTPAfterReservation(t *testing.T) {
 
 			sendCalled = true
 
+			deadline, ok := ctx.Deadline()
+
+			if !ok {
+				t.Fatal(
+					"expected SMS delivery context to have a deadline",
+				)
+			}
+
+			remaining := time.Until(deadline)
+
+			if remaining <= 7*time.Second ||
+				remaining > 8*time.Second {
+				t.Fatalf(
+					"expected an approximately 8-second deadline, got %v",
+					remaining,
+				)
+			}
+
 			if phone != "09121234567" {
 				t.Fatalf(
 					"expected normalized phone %q, got %q",
@@ -719,6 +737,144 @@ func TestCreateActivatesReservedOTPAfterDelivery(t *testing.T) {
 	if !activateCalled {
 		t.Fatal(
 			"expected delivered OTP to be activated",
+		)
+	}
+}
+
+func TestCreateCleansUpDeliveryAfterRequestCancellation(
+	t *testing.T,
+) {
+	ctx, cancel := context.WithCancel(
+		context.Background(),
+	)
+	defer cancel()
+
+	cleanupCalled := false
+	activateCalled := false
+
+	service := Service{
+		Secret: make([]byte, 32),
+
+		RandomInt: func(
+			min int,
+			max int,
+		) (int, error) {
+			return 123456, nil
+		},
+
+		RandomBytes: func(
+			size int,
+		) ([]byte, error) {
+			return make([]byte, 32), nil
+		},
+
+		ChargeIP: func(
+			ctx context.Context,
+			secret []byte,
+			ip string,
+			operation string,
+		) error {
+			return nil
+		},
+
+		Reserve: func(
+			ctx context.Context,
+			secret []byte,
+			phone string,
+			codeHash string,
+			nonce string,
+			ttl time.Duration,
+		) (otpdb.ReservedOTP, error) {
+			return otpdb.ReservedOTP{
+				ID:        42,
+				ExpiresAt: time.Now().Add(2 * time.Minute),
+			}, nil
+		},
+
+		SendOTP: func(
+			deliveryCtx context.Context,
+			phone string,
+			code string,
+			expiresAt time.Time,
+		) error {
+			// Simulate the customer disconnecting
+			// while SMS delivery is running.
+			cancel()
+
+			<-deliveryCtx.Done()
+
+			return deliveryCtx.Err()
+		},
+
+		MarkDeliveryFailed: func(
+			cleanupCtx context.Context,
+			phone string,
+			otpID int64,
+		) error {
+			cleanupCalled = true
+
+			if phone != "09121234567" || otpID != 42 {
+				t.Fatal("unexpected OTP cleanup target")
+			}
+
+			if err := cleanupCtx.Err(); err != nil {
+				return err
+			}
+
+			// Cleanup must have its own deadline.
+			deadline, ok := cleanupCtx.Deadline()
+
+			if !ok {
+				t.Fatal(
+					"expected cleanup context to have a deadline",
+				)
+			}
+
+			// Cleanup must be bounded to five seconds.
+			remaining := time.Until(deadline)
+
+			if remaining <= 0 ||
+				remaining > otpCleanupTimeout {
+				t.Fatalf(
+					"expected cleanup deadline within %v, got %v",
+					otpCleanupTimeout,
+					remaining,
+				)
+			}
+
+			return nil
+		},
+
+		Activate: func(
+			ctx context.Context,
+			phone string,
+			otpID int64,
+		) error {
+			activateCalled = true
+			return nil
+		},
+	}
+
+	err := service.Create(
+		ctx,
+		"09121234567",
+		"192.0.2.1",
+	)
+
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf(
+			"expected ErrUnavailable, got %v",
+			err,
+		)
+	}
+
+	if !cleanupCalled {
+		t.Fatal("expected failed OTP cleanup")
+	}
+
+	if activateCalled {
+		t.Fatal(
+			"canceled delivery must not activate OTP",
 		)
 	}
 }
