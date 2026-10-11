@@ -11,7 +11,11 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/phone"
 )
 
-const otpTTL = 2 * time.Minute
+const (
+	otpTTL             = 2 * time.Minute
+	otpDeliveryTimeout = 8 * time.Second
+	otpCleanupTimeout  = 5 * time.Second
+)
 
 var ErrUnavailable = errors.New("OTP unavailable")
 
@@ -53,6 +57,7 @@ type Service struct {
 	SendOTP            SendOTPFunc
 	MarkDeliveryFailed MarkDeliveryFailedFunc
 	Activate           ActivateFunc
+	VerifyOTP          VerifyOTPFunc
 }
 
 type ActivateFunc func(
@@ -143,18 +148,40 @@ func (s *Service) Create(
 		return err
 	}
 
-	if err := s.SendOTP(
+	deliveryCtx, cancelDelivery := context.WithTimeout(
 		ctx,
+		otpDeliveryTimeout,
+	)
+
+	sendErr := s.SendOTP(
+		deliveryCtx,
 		normalizedPhone,
 		code,
 		reserved.ExpiresAt,
-	); err != nil {
-		if cleanupErr :=
-			s.MarkDeliveryFailed(
-				ctx,
-				normalizedPhone,
-				reserved.ID,
-			); cleanupErr != nil {
+	)
+
+	// Check whether the delivery context expired or
+	// was canceled before releasing its resources.
+	deliveryErr := deliveryCtx.Err()
+	cancelDelivery()
+
+	if sendErr != nil || deliveryErr != nil {
+		// Allow cleanup to continue even if the
+		// original HTTP request was canceled.
+		cleanupBase := context.WithoutCancel(ctx)
+
+		// But never allow cleanup to run indefinitely.
+		cleanupCtx, cancelCleanup := context.WithTimeout(
+			cleanupBase,
+			otpCleanupTimeout,
+		)
+		defer cancelCleanup()
+
+		if cleanupErr := s.MarkDeliveryFailed(
+			cleanupCtx,
+			normalizedPhone,
+			reserved.ID,
+		); cleanupErr != nil {
 			return cleanupErr
 		}
 
