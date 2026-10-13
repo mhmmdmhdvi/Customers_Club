@@ -6,6 +6,14 @@ import (
 )
 
 func NewRouter() http.Handler {
+	return NewRouterWithDependencies(
+		RouterDependencies{},
+	)
+}
+
+func NewRouterWithDependencies(
+	deps RouterDependencies,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc(
@@ -27,7 +35,28 @@ func NewRouter() http.Handler {
 					Service: "customer-club-api",
 				},
 			)
+		},
+	)
 
+	mux.HandleFunc(
+		"POST /auth/request-code",
+		func(w http.ResponseWriter, r *http.Request) {
+			handleRequestCode(
+				w,
+				r,
+				deps.RequestCode,
+			)
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /auth/verify-code",
+		func(w http.ResponseWriter, r *http.Request) {
+			handleVerifyCode(
+				w,
+				r,
+				deps.VerifyCode,
+			)
 		},
 	)
 
