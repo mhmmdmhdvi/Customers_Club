@@ -2,6 +2,7 @@ package otpdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -49,18 +50,24 @@ func RunTransaction(
 	if err != nil {
 		return err
 	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = tx.Rollback(cleanupCtx)
+	}()
 
 	if err := work(tx); err != nil {
-		_ = tx.Rollback(ctx)
-
 		return err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		_ = tx.Rollback(ctx)
-
 		return err
 	}
+	committed = true
 
 	return nil
 }

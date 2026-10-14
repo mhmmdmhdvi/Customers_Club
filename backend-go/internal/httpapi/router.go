@@ -60,6 +60,21 @@ func NewRouterWithDependencies(
 		},
 	)
 
+	// net/http's default routing errors are plain text; keep the API's JSON
+	// boundary for unknown paths and known paths with the wrong method.
+	for path, methods := range map[string]string{
+		"/health":            "GET, HEAD",
+		"/auth/request-code": "POST",
+		"/auth/verify-code":  "POST",
+	} {
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Allow", methods)
+			writeSecurityError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		})
+	}
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		writeSecurityError(w, http.StatusNotFound, "Not found")
+	})
 	return requestIDMiddleware(
 		mux,
 		newRequestID,

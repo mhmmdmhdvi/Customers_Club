@@ -77,3 +77,18 @@ func TestRequestIDMiddleware(t *testing.T) {
 		)
 	}
 }
+
+func TestNestedRequestIDMiddlewarePreservesServerGeneratedID(t *testing.T) {
+	var receivedID string
+	inner := requestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedID = RequestIDFromContext(r.Context())
+	}), func() string { return "inner-generated" })
+	outer := requestIDMiddleware(inner, func() string { return "outer-generated" })
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/health", nil)
+	r.Header.Set("X-Request-Id", "client-controlled")
+	outer.ServeHTTP(w, r)
+	if receivedID != "outer-generated" || w.Header().Get("X-Request-Id") != "outer-generated" {
+		t.Fatalf("middleware replaced the server request ID: context=%q header=%q", receivedID, w.Header().Get("X-Request-Id"))
+	}
+}

@@ -1,33 +1,32 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
-	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/httpapi"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/database"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-
-	if port == "" {
-		port = "3000"
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	env := make(map[string]string)
+	for _, entry := range os.Environ() {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok {
+			env[key] = value
+		}
 	}
-
-	address := ":" + port
-
-	log.Printf(
-		"Server running on port %s",
-		port,
-	)
-
-	err := http.ListenAndServe(
-		address,
-		httpapi.NewRouter(),
-	)
-
+	err := runAPI(ctx, env, database.Open, &http.Client{Timeout: 10 * time.Second}, serveHTTP)
+	stop()
 	if err != nil {
-		log.Fatal(err)
+		// Dependency errors can contain addresses or credentials. Keep startup logs sanitized.
+		log.Print("API startup failed")
+		os.Exit(1)
 	}
 }
