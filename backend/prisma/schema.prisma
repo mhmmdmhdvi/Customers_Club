@@ -26,6 +26,8 @@ model User {
   adminMfaChallenges AdminMfaChallenge[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
+  // Physical fastupdate=off storage option is maintained by the additive SQL
+  // migration; Prisma's index syntax does not express PostgreSQL reloptions.
   @@index([phone(ops: raw("gin_trgm_ops")), firstName(ops: raw("gin_trgm_ops")), lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_search_trgm_idx")
 }
 

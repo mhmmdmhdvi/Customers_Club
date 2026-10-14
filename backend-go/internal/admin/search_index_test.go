@@ -72,3 +72,20 @@ func TestUserSubstringIndexSupportsExistingSearchPredicate(t *testing.T) {
 		t.Fatal("existing user search predicate cannot use migration-owned trigram index")
 	}
 }
+
+// A write burst must enter the search index directly. Restoring fastupdate's
+// pending list recreates the demonstrated high-tail search workload.
+func TestUserSearchIndexDoesNotDeferWriteBurst(t *testing.T) {
+	p := testdb.Open(t)
+	ctx := context.Background()
+	if _, err := p.Exec(ctx, `INSERT INTO "User" (phone,"firstName","lastName","updatedAt") SELECT '09'||lpad(i::text,9,'0'),'WriteProbe','Example',now() FROM generate_series(1,1000) i`); err != nil {
+		t.Fatal(err)
+	}
+	var flushed int64
+	if err := p.QueryRow(ctx, `SELECT gin_clean_pending_list('"User_search_trgm_idx"')`).Scan(&flushed); err != nil {
+		t.Fatal(err)
+	}
+	if flushed != 0 {
+		t.Fatalf("search index deferred %d pages from the write burst", flushed)
+	}
+}
