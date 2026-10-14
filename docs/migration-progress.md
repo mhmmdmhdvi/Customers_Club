@@ -23,10 +23,14 @@ Baseline: Go tests passed. Node offline suite: 560 passed, four test files faile
 
 1. Runtime/browser: complete (8bbfcc5 + d7e06f6). Behavioral tests/full Go suite/vet passed; independent review and scoped fix review passed. Node CORS semantics preserved; all server exits drain before pool cleanup.
 2. Compatibility/harness: complete (4ed7500 + 0b7ef1a). Node offline 682 passed, including 107 shared HTTP cases; Go offline/owned-PostgreSQL/vet pass. Real PostgreSQL isolation/cleanup and native nonzero/timeout startup cleanup passed. Fix round 1/5: four P2 findings addressed, zero open; scoped spec/quality review passed.
-3. Registration/sessions/MFA: in progress; source base 0b7ef1a. Port all six session endpoints, atomic credential claims, refresh/logout, live authorization and interoperable admin MFA.
-4. Birthday/renewal: pending.
+3. Registration/sessions/MFA: complete (197f710). Complete Go offline/owned-PostgreSQL/vet checks and 731 Node tests passed, including 156 shared HTTP cases. Independent spec/quality/security review approved with no blocking findings. All six routes, atomic credential claims, refresh/logout, live authorization and interoperable admin MFA are wired.
+4. Birthday/renewal: in progress. Rehearse actual Prisma histories in disposable databases and implement coordinated frontend renewal; preserve current UI styling.
 5. Contact/admin/audit: pending.
 6. Performance: pending.
 7. Consolidation/CI/deployment: pending.
 
 Frontend baseline: 18 files / 119 tests passed. Node failure cause confirmed: eager MFA configuration at app import; stage 2 will make configuration lazy without fake runtime credentials. Local race detector is unavailable (CGO off and no C compiler); Linux CI will run race checks.
+
+Stage 3 checkpoint: real PostgreSQL lifecycle/concurrent claims, rollback/cancellation, refresh/logout overlap, MFA attempts/replay and bidirectional Node crypto tests passed. Production initializeAPI/browser-wrapper HTTP flow passed for member register/refresh/me/logout and persisted admin MFA/replay. Another 49 shared session fixtures passed within 156 total shared cases. Source and final verification are recorded in task-3-report.md; review approved in task-3-review.md. Go issuance uses Node-compatible UTC millisecond precision to preserve absolute database expiry.
+
+Deferred minor (Stage3 -> Stage7): capture/assert the expected Authentication operation failed diagnostic in backend/tests/session-contract.test.js:20 so passing offline test output is clean. Runtime sanitized logging remains intact.
