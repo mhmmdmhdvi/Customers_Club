@@ -21,7 +21,9 @@ password=$(openssl rand -hex 32)
 bootstrap_password=$(openssl rand -hex 32)
 printf '%s' "$bootstrap_password" > "$root/password"
 "$bin/initdb" -D "$root/data" -U "$bootstrap" --pwfile="$root/password" --auth-local=scram-sha-256 --auth-host=scram-sha-256 --locale=C --encoding=UTF8 > "$root/initdb.log"
-printf "listen_addresses='127.0.0.1'\nport=55439\ntimezone='UTC'\n" >> "$root/data/postgresql.conf"
+# Every harness connection uses explicit loopback TCP. Disable package-default
+# Unix sockets, whose /var/run/postgresql directory belongs to the postgres user.
+printf "listen_addresses='127.0.0.1'\nport=55439\nunix_socket_directories=''\ntimezone='UTC'\n" >> "$root/data/postgresql.conf"
 "$bin/pg_ctl" -D "$root/data" -l "$root/postgres.log" -w -t 30 start
 export PGPASSWORD="$bootstrap_password"
 "$bin/psql" -h 127.0.0.1 -p 55439 -U "$bootstrap" -d postgres -X -q -v ON_ERROR_STOP=1 <<SQL
