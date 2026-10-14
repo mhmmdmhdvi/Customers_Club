@@ -81,7 +81,9 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, deps RouterDependencies
 			work = func() (map[string]any, error) { return deps.Admin.Overview(r.Context()) }
 		case "users", "messages", "audit", "security":
 			methods = "GET, HEAD"
-			work = func() (map[string]any, error) { return deps.Admin.List(r.Context(), parts[0], r.URL.Query()) }
+			work = func() (map[string]any, error) {
+				return deps.Admin.List(r.Context(), parts[0], parseAdminQuery(r.URL.RawQuery))
+			}
 		}
 	} else if len(parts) == 2 && parts[1] != "" && (parts[0] == "messages" || parts[0] == "audit" || parts[0] == "security") {
 		methods = "GET, HEAD"

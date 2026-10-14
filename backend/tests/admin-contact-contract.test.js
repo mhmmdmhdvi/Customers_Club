@@ -10,8 +10,10 @@ let scenario;
 let role;
 function replace(path, exports) { const id=require.resolve(path);require.cache[id]={id,filename:id,loaded:true,exports}; }
 const message = { id:1,name:'Test',phone:'09121234567',email:null,subject:'SUPPORT',message:'private body',status:'NEW',createdAt:new Date('2026-01-01T00:00:00.000Z'),updatedAt:new Date('2026-01-01T00:00:00.000Z') };
+const legacyUser={id:1,phone:'09121234567',firstName:null,lastName:null,birthYear:null,birthMonth:null,birthDay:null,role:'MEMBER',createdAt:new Date('2026-01-01T00:00:00.000Z'),updatedAt:new Date('2026-01-01T00:00:00.000Z')};
+function filteredUsers(where){if(scenario!=='filtered')return [];return where.OR?[]:[legacyUser];}
 const prisma = {
- user:{ count:async()=>0,findMany:async()=>[] },
+ user:{ count:async({where})=>filteredUsers(where).length,findMany:async({where})=>filteredUsers(where) },
  authSession:{count:async()=>0},
  contactMessage:{count:async()=>scenario==='quota'?3:0,create:async()=>{if(scenario==='unexpected')throw Error('private dependency detail');return message;},findMany:async()=>[],findUnique:async({where,select})=>{if(where.id!==1)return null;return Object.fromEntries(Object.keys(select).map(k=>[k,message[k]]));},updateMany:async({data})=>{message.status=data.status;return {count:1};}},
  adminAuditEvent:{count:async()=>0,findMany:async()=>[],findUnique:async()=>null,create:async()=>({id:1})},

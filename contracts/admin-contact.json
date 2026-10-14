@@ -1588,6 +1588,83 @@
           }
         }
       }
+    },
+    {
+      "name": "query malformed page retained",
+      "method": "GET",
+      "path": "/admin/users?page=%ZZ",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "realService": true
+    },
+    {
+      "name": "query semicolon page retained",
+      "method": "GET",
+      "path": "/admin/users?page=1;page=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "realService": true
+    },
+    {
+      "name": "query duplicate malformed page retained",
+      "method": "GET",
+      "path": "/admin/users?page=1&page=%ZZ",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "realService": true
+    },
+    {
+      "name": "query malformed search retained",
+      "method": "GET",
+      "path": "/admin/users?search=%ZZ",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      },
+      "realService": true,
+      "scenario": "filtered"
+    },
+    {
+      "name": "query malformed unknown ignored",
+      "method": "GET",
+      "path": "/admin/users?unknown=%ZZ&unknown=%&Page=bad",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "query semicolon unknown ignored",
+      "method": "GET",
+      "path": "/admin/users?unknown=a;b=c",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
     }
   ]
 }

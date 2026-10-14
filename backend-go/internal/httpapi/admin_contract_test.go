@@ -20,6 +20,7 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/contact"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/session"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/testdb"
 )
 
 type adminFixture struct {
@@ -28,7 +29,7 @@ type adminFixture struct {
 	Raw                                                   *string
 	JSON                                                  json.RawMessage
 	Status                                                int
-	Validate, NoCSRF, RawRequest                          bool
+	Validate, NoCSRF, RawRequest, RealService             bool
 	Headers                                               map[string]string
 	Runtime                                               map[string]contractExpected
 }
@@ -98,6 +99,8 @@ func TestSharedAdminContactHTTPContracts(t *testing.T) {
 	if e = json.Unmarshal(raw, &fixtures); e != nil {
 		t.Fatal(e)
 	}
+	var real *admin.Service
+	parentT := t
 	for _, f := range fixtures.Cases {
 		t.Run(f.Name, func(t *testing.T) {
 			role := f.Role
@@ -105,6 +108,19 @@ func TestSharedAdminContactHTTPContracts(t *testing.T) {
 				role = "ADMIN"
 			}
 			deps := RouterDependencies{Session: adminAuth{sessionContract{f.Scenario}, role}, Auth: authconfig.Config{AllowedOrigins: []string{"http://localhost:5173"}}, Admin: adminContract{f}, Contact: contactContract{f.Scenario}}
+			if f.RealService {
+				if os.Getenv("ALLOW_MIGRATION_TEST_DATABASE") != "1" || os.Getenv("MIGRATION_TEST_DATABASE_URL") == "" {
+					t.Skip("real admin contracts require disposable database opt-in")
+				}
+				if real == nil {
+					p := testdb.Open(parentT)
+					if _, e := p.Exec(context.Background(), `INSERT INTO "User" (phone,"createdAt","updatedAt") VALUES ('09121234567','2026-01-01','2026-01-01')`); e != nil {
+						t.Fatal(e)
+					}
+					real = admin.New(p)
+				}
+				deps.Admin = real
+			}
 			srv := httptest.NewServer(WithBrowserPolicy(NewRouterWithDependencies(deps), deps.Auth))
 			defer srv.Close()
 			body := string(f.Body)
