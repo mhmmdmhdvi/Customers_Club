@@ -20,12 +20,12 @@ func TestBrowserPolicyExactCredentialedOrigins(t *testing.T) {
 	}{
 		{"allowed", []string{"https://club.example"}, 200},
 		{"no origin", nil, 200},
-		{"lookalike", []string{"https://club.example.evil"}, 403},
-		{"null", []string{"null"}, 403},
-		{"case differs", []string{"https://CLUB.example"}, 403},
-		{"trailing slash", []string{"https://club.example/"}, 403},
-		{"duplicate", []string{"https://club.example", "https://club.example"}, 403},
-		{"empty", []string{""}, 403},
+		{"lookalike", []string{"https://club.example.evil"}, 200},
+		{"null", []string{"null"}, 200},
+		{"case differs", []string{"https://CLUB.example"}, 200},
+		{"trailing slash", []string{"https://club.example/"}, 200},
+		{"duplicate", []string{"https://club.example", "https://club.example"}, 200},
+		{"empty", []string{""}, 200},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			called := false
@@ -44,8 +44,8 @@ func TestBrowserPolicyExactCredentialedOrigins(t *testing.T) {
 				if allow != tc.origins[0] || w.Header().Get("Access-Control-Allow-Credentials") != "true" {
 					t.Fatal("missing exact credentialed CORS")
 				}
-			} else if allow != "" {
-				t.Fatalf("unexpected CORS grant: %q", allow)
+			} else if allow != "" || w.Header().Get("Access-Control-Allow-Credentials") != "" {
+				t.Fatalf("unexpected CORS grant: %v", w.Header())
 			}
 			if !strings.Contains(w.Header().Get("Vary"), "Origin") {
 				t.Fatal("responses must vary by Origin, including rejections")
@@ -67,7 +67,9 @@ func TestBrowserPolicyPreflight(t *testing.T) {
 	}{
 		{"POST", "content-type, X-CSRF-Protection, authorization", 204},
 		{"PATCH", "", 204}, {"GET", "", 204}, {"OPTIONS", "", 204},
-		{"DELETE", "", 403}, {"POST", "X-Untrusted", 403}, {"POST", "Content-Type,", 403},
+		// Node advertises the configured list; the browser enforces unsupported metadata.
+		{"DELETE", "", 204}, {"POST", "X-Untrusted", 204}, {"POST", "Content-Type,", 204},
+		{"", "", 204},
 	} {
 		t.Run(tc.method+tc.headers, func(t *testing.T) {
 			h := WithBrowserPolicy(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("preflight reached business handler") }), authconfig.Config{AllowedOrigins: []string{"https://club.example"}})
@@ -100,6 +102,45 @@ func TestBrowserPolicyPreflight(t *testing.T) {
 				t.Fatal("invalid preflight error JSON")
 			}
 		})
+	}
+}
+
+func TestBrowserPolicyDoesNotInterceptUntrustedPreflight(t *testing.T) {
+	h := WithBrowserPolicy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}), authconfig.Config{AllowedOrigins: []string{"https://club.example"}})
+	r := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	r.Header.Set("Origin", "https://evil.example")
+	r.Header.Set("Access-Control-Request-Method", "POST")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusAccepted || w.Header().Get("Access-Control-Allow-Origin") != "" || w.Header().Get("Access-Control-Allow-Methods") != "" {
+		t.Fatalf("untrusted OPTIONS must proceed without CORS grants: %d %v", w.Code, w.Header())
+	}
+}
+
+func TestBrowserPolicyLeavesMutationOriginRejectionToSessionGuard(t *testing.T) {
+	config := authconfig.Config{AllowedOrigins: []string{"https://club.example"}}
+	for _, origins := range [][]string{{"https://evil.example"}, {"https://club.example", "https://club.example"}} {
+		called := false
+		guardCalled := false
+		h := WithBrowserPolicy(sessionGuard(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			called = true
+		}), func() (authconfig.Config, error) { guardCalled = true; return config, nil }), config)
+		r := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader("{}"))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("X-CSRF-Protection", "1")
+		for _, origin := range origins {
+			r.Header.Add("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusForbidden || called || !guardCalled || !json.Valid(w.Body.Bytes()) || !strings.Contains(w.Body.String(), "Request origin is not allowed") {
+			t.Fatalf("session guard did not reject mutation: %d %s", w.Code, w.Body.String())
+		}
+		if w.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Fatal("untrusted mutation received a CORS grant")
+		}
 	}
 }
 

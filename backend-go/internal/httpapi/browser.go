@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
@@ -19,22 +18,19 @@ func WithBrowserPolicy(next http.Handler, config authconfig.Config) http.Handler
 		securityHeaders(w.Header())
 		w.Header().Add("Vary", "Origin")
 		origins := r.Header.Values("Origin")
-		if len(origins) > 1 || (len(origins) == 1 && !originAllowed(origins[0], allowedOrigins)) {
-			writeSecurityError(w, http.StatusForbidden, "Request origin is not allowed")
-			return
-		}
-		if len(origins) == 1 {
+		// Like Node's CORS middleware, public requests without an exact origin
+		// grant still reach their handler. Session guards reject unsafe mutations.
+		allowedOrigin := len(origins) == 1 && originAllowed(origins[0], allowedOrigins)
+		if allowedOrigin {
 			w.Header().Set("Access-Control-Allow-Origin", origins[0])
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Request-Id")
 		}
-		if r.Method == http.MethodOptions && len(origins) == 1 {
+		if r.Method == http.MethodOptions && allowedOrigin {
 			w.Header().Add("Vary", "Access-Control-Request-Method")
 			w.Header().Add("Vary", "Access-Control-Request-Headers")
-			if !validPreflight(r) {
-				writeSecurityError(w, http.StatusForbidden, "CORS preflight is not allowed")
-				return
-			}
+			// Advertise the fixed configured allowlist even when requested metadata
+			// is unsupported; the browser performs preflight enforcement.
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-CSRF-Protection")
 			w.Header().Set("Access-Control-Max-Age", "600")
@@ -45,28 +41,6 @@ func WithBrowserPolicy(next http.Handler, config authconfig.Config) http.Handler
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}), newRequestID)
-}
-
-func validPreflight(r *http.Request) bool {
-	methods := r.Header.Values("Access-Control-Request-Method")
-	if len(methods) != 1 {
-		return false
-	}
-	switch methods[0] {
-	case "GET", "POST", "PATCH", "OPTIONS":
-	default:
-		return false
-	}
-	for _, value := range r.Header.Values("Access-Control-Request-Headers") {
-		for _, header := range strings.Split(value, ",") {
-			switch strings.ToLower(strings.TrimSpace(header)) {
-			case "content-type", "authorization", "x-csrf-protection":
-			default:
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func securityHeaders(header http.Header) {

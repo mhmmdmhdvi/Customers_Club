@@ -19,27 +19,36 @@ func serveHTTP(ctx context.Context, address string, handler http.Handler) error 
 	if err != nil {
 		return err
 	}
+	return serveHTTPListener(ctx, server, listener)
+}
+
+// serveHTTPListener owns the accepted HTTP connections as well as the listener.
+func serveHTTPListener(ctx context.Context, server *http.Server, listener net.Listener) error {
 	result := make(chan error, 1)
 	go func() { result <- server.Serve(listener) }()
+	var serveErr error
+	serveStopped := false
 	select {
 	case err := <-result:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
+		serveErr = err
+		serveStopped = true
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		shutdownErr := server.Shutdown(shutdownCtx)
-		if shutdownErr != nil {
-			shutdownErr = errors.Join(shutdownErr, server.Close())
-		}
-		serveErr := <-result
-		if errors.Is(serveErr, http.ErrServerClosed) {
-			serveErr = nil
-		}
-		return errors.Join(shutdownErr, serveErr)
 	}
+	// Serve can return after an accept failure while accepted requests are still
+	// running. Every post-listen exit must drain before dependencies are closed.
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	shutdownErr := server.Shutdown(shutdownCtx)
+	if shutdownErr != nil {
+		shutdownErr = errors.Join(shutdownErr, server.Close())
+	}
+	if !serveStopped {
+		serveErr = <-result
+	}
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		serveErr = nil
+	}
+	return errors.Join(serveErr, shutdownErr)
 }
 
 // newHTTPServer creates the HTTP server with
