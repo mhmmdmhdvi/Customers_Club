@@ -85,6 +85,11 @@ func runGINFastupdateComparison(t *testing.T, output string) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tx.Rollback(cleanup)
+		})
 		data.Plans[mode+":userWrite1000"] = explain(t, ctx, tx.Query, `EXPLAIN (ANALYZE, BUFFERS, WAL) INSERT INTO "User" (id,phone,"firstName","lastName","createdAt","updatedAt") SELECT 100000+i,'09'||lpad((100000+i)::text,9,'0'),'WriteProbe','Example',now(),now() FROM generate_series(1,1000) i`)
 		if err = tx.Rollback(ctx); err != nil {
 			t.Fatal(err)
