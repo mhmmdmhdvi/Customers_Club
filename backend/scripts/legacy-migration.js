@@ -68,7 +68,10 @@ async function runMigration() {
             const birthdayApplied = applied.includes(BIRTHDAY);
             const recovered = birthdays.length === 3 && birthdays.every(column => column.type === "integer" && !column.required && column.default_value === null && column.marker === MARKER);
             const expectedApplied = birthdays.length === 3 && birthdays.every(column => column.type === "integer" && column.default_value === null && column.required === !applied.includes(NULLABLE));
-            if (birthdayApplied ? !expectedApplied : birthdays.length !== 0 && !recovered) throw new Error("Schema drift: unexpected or partially added birthday columns");
+            // Resolve can finish before deploy. Only our exact marked,
+            // default-free nullable DDL may resume that intermediate history.
+            const pendingOwnedRecovery = recovered && !applied.includes(NULLABLE);
+            if (birthdayApplied ? !expectedApplied && !pendingOwnedRecovery : birthdays.length !== 0 && !recovered) throw new Error("Schema drift: unexpected or partially added birthday columns");
             if (birthdayApplied && activeFailed.length) throw new Error("Migration history drift: birthday both failed and applied");
             if (applied.includes(NULLABLE)) {
                 const constraint = (await db.query(`SELECT convalidated,pg_get_expr(conbin,conrelid) expression FROM pg_constraint WHERE conrelid='public."User"'::regclass AND conname='User_birthday_all_or_none' AND contype='c'`)).rows;

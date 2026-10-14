@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AuthContext } from "./AuthContext";
-import { createSessionClient, RENEW_EARLY_MS } from "./api";
+import { createSessionClient } from "./api";
 
 export function AuthProvider({ children }) {
     const [client] = useState(() => createSessionClient());
@@ -8,12 +8,10 @@ export function AuthProvider({ children }) {
     useEffect(() => { client.renew().catch(() => {}); }, [client]);
     useEffect(() => {
         if (!state.session) return;
-        const expiry = Date.parse(state.session.accessExpiresAt);
-        if (!Number.isFinite(expiry)) return;
-        const renew = () => {
-            if (Date.parse(client.snapshot().session?.accessExpiresAt) - Date.now() <= RENEW_EARLY_MS) client.renew().catch(() => {});
-        };
-        const timer = setTimeout(renew, Math.max(0, expiry - Date.now() - RENEW_EARLY_MS));
+        const nextCheck = client.nextRenewalAt();
+        if (!Number.isFinite(nextCheck)) return;
+        const renew = () => { client.checkSession().catch(() => {}); };
+        const timer = setTimeout(renew, Math.max(0, nextCheck - Date.now()));
         window.addEventListener("focus", renew);
         document.addEventListener("visibilitychange", renew);
         return () => { clearTimeout(timer); window.removeEventListener("focus", renew); document.removeEventListener("visibilitychange", renew); };

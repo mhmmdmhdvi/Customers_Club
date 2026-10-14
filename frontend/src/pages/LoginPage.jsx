@@ -45,14 +45,22 @@ export function LoginPage({
         logout,
     } = useAuth();
     const pageGeneration = useRef(0);
-    useEffect(() => () => { pageGeneration.current++; }, []);
+    const pageRequests = useRef(new Set());
+    useEffect(() => {
+        const requests = pageRequests.current;
+        const invalidatePage = () => { pageGeneration.current++; };
+        return () => { invalidatePage(); requests.forEach(controller => controller.abort()); };
+    }, []);
     function captureGrant() {
         const started = pageGeneration.current;
         const apply = captureSession?.() ?? establishSession;
-        return grant => {
-            if (started !== pageGeneration.current) return false;
+        const isCurrent = () => started === pageGeneration.current && (apply.isCurrent?.() ?? true);
+        const grantSession = grant => {
+            if (!isCurrent()) return false;
             return apply(grant) !== false;
         };
+        grantSession.isCurrent = isCurrent;
+        return grantSession;
     }
     const [pendingWebOtpCode, setPendingWebOtpCode] =
         useState("");
@@ -299,11 +307,18 @@ export function LoginPage({
         }
 
         setIsLoading(true);
+        // Capture both page and provider identity before verification begins.
+        // A late proof must never initiate a new cookie exchange after unmount.
+        const applyGrant = captureGrant();
+        const pageStarted = pageGeneration.current;
+        const controller = new AbortController();
+        pageRequests.current.add(controller);
 
         try {
             const response = await boundedFetch(
                 `${API_BASE_URL}/auth/verify-code`,
                 {
+                    signal: controller.signal,
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -315,7 +330,9 @@ export function LoginPage({
                 },
             );
 
+            if (!applyGrant.isCurrent()) return;
             const data = await response.json();
+            if (!applyGrant.isCurrent()) return;
 
             if (!response.ok) {
                 setError(
@@ -345,10 +362,11 @@ export function LoginPage({
                 setAutoVerifyEnabled(false);
 
                 try {
-                    const applyGrant = captureGrant();
                     const loginResult = await loginWithProof(
                         data.verificationToken,
+                        controller.signal,
                     );
+                    if (!applyGrant.isCurrent()) return;
 
                     if (loginResult.mfaRequired === true) {
                         setMfaChallenge({
@@ -370,6 +388,7 @@ export function LoginPage({
                     setVerification(null);
                     onAuthenticated();
                 } catch {
+                    if (!applyGrant.isCurrent()) return;
                     // Do not automatically repeat a single-use proof exchange.
                     setVerification(null);
                     setStep("phone");
@@ -389,9 +408,11 @@ export function LoginPage({
             setCode("");
             setAutoVerifyEnabled(false);
         } catch {
+            if (!applyGrant.isCurrent()) return;
             setError("تأیید کد انجام نشد. لطفاً دوباره تلاش کنید.");
         } finally {
-            setIsLoading(false);
+            pageRequests.current.delete(controller);
+            if (pageGeneration.current === pageStarted) setIsLoading(false);
         }
     }
 
@@ -534,10 +555,11 @@ export function LoginPage({
         }
     }
 
-    async function loginWithProof(verificationToken) {
+    async function loginWithProof(verificationToken, signal) {
         const response = await credentialRequest(
                 `${API_BASE_URL}/auth/login`,
             {
+                signal,
                 method: "POST",
                 credentials: "include",
                 headers: {

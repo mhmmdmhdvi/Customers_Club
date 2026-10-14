@@ -2,6 +2,7 @@ import { refreshSession, clearRefreshBlock, credentialRequest } from "./refreshS
 import { boundedFetch } from "./request";
 
 export const RENEW_EARLY_MS = 60000;
+const RENEW_CHECK_INTERVAL_MS = 15000;
 const stale = () => new DOMException("Authentication changed", "AbortError");
 
 function waitForRenewal(operation, signal) {
@@ -19,11 +20,15 @@ export function createSessionClient({ refresh = refreshSession } = {}) {
     let state = { session: null, authStatus: "restoring" };
     let generation = 0;
     let renewing = null;
+    let renewalAt = null;
+    let finalDeadline = false;
     const listeners = new Set();
     const publish = next => { state = next; listeners.forEach(listener => listener()); };
     const clearSession = ({ confirmedLogout = false } = {}) => {
         generation++;
         renewing = null;
+        renewalAt = null;
+        finalDeadline = false;
         if (confirmedLogout) clearRefreshBlock();
         publish({ session: null, authStatus: "unauthenticated" });
     };
@@ -31,20 +36,38 @@ export function createSessionClient({ refresh = refreshSession } = {}) {
         generation++;
         renewing = null;
         if (!coordinatedGrant) clearRefreshBlock();
+        scheduleRenewal(session);
         publish({ session, authStatus: "authenticated" });
         return true;
     };
     const captureSession = () => {
         const started = generation;
-        return session => started === generation ? establishSession(session, { coordinatedGrant: true }) : false;
+        const apply = session => started === generation ? establishSession(session, { coordinatedGrant: true }) : false;
+        apply.isCurrent = () => started === generation;
+        return apply;
     };
+    function scheduleRenewal(session, previousSession) {
+        const expiry = Date.parse(session?.accessExpiresAt);
+        const remaining = expiry - Date.now();
+        // Short grants may come from a configured short token TTL. Probe at a
+        // positive interval; a non-advancing grant in the final minute instead
+        // waits for its existing deadline, without extending that deadline.
+        finalDeadline = remaining > 0 && remaining <= RENEW_EARLY_MS && expiry <= Date.parse(previousSession?.accessExpiresAt);
+        const interval = remaining <= 0 ? 0 : Math.min(RENEW_CHECK_INTERVAL_MS, Math.max(1, remaining / 2));
+        renewalAt = finalDeadline ? expiry : Math.max(expiry - RENEW_EARLY_MS, Date.now() + interval);
+    }
     const renew = () => {
         if (renewing) return renewing;
+        if (finalDeadline && state.session) {
+            if (Date.now() >= renewalAt) clearSession();
+            return Promise.resolve(state.session);
+        }
         const started = generation;
         const operation = (async () => {
             try {
                 const result = await refresh();
                 if (started !== generation) throw stale();
+                if (result.kind === "authenticated") scheduleRenewal(result.session, state.session);
                 publish(result.kind === "authenticated"
                     ? { session: result.session, authStatus: "authenticated" }
                     : { session: null, authStatus: "unauthenticated" });
@@ -58,11 +81,16 @@ export function createSessionClient({ refresh = refreshSession } = {}) {
         operation.finally(() => { if (renewing === operation) renewing = null; }).catch(() => {});
         return operation;
     };
+    const checkSession = () => {
+        if (!state.session) return Promise.resolve(null);
+        if (Date.now() < renewalAt) return Promise.resolve(state.session);
+        return renew();
+    };
     const request = async (url, options = {}) => {
         const started = generation;
         options.signal?.throwIfAborted();
         if (!state.session) throw new Error("Sign in again to continue");
-        if (Date.parse(state.session.accessExpiresAt) - Date.now() <= RENEW_EARLY_MS) await waitForRenewal(renew(), options.signal);
+        await waitForRenewal(checkSession(), options.signal);
         const send = async () => {
             options.signal?.throwIfAborted();
             if (started !== generation || !state.session) throw stale();
@@ -91,5 +119,5 @@ export function createSessionClient({ refresh = refreshSession } = {}) {
         // again here could erase another tab's newer ambiguous operation.
         if (started === generation) clearSession();
     };
-    return { snapshot: () => state, subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); }, establishSession, captureSession, clearSession, renew, request, logout };
+    return { snapshot: () => state, subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); }, establishSession, captureSession, clearSession, renew, checkSession, nextRenewalAt: () => renewalAt, request, logout };
 }

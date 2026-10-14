@@ -47,6 +47,13 @@ async function main(scenario) {
             assert.equal(cli(["migrate", "deploy"], config), false, "Historical NOT NULL must fail for populated users");
             assert.equal((await db.query(`SELECT count(*)::int n FROM "_prisma_migrations" WHERE migration_name=$1 AND finished_at IS NULL AND rolled_back_at IS NULL`, [birthday])).rows[0].n, 1);
         }
+        if (scenario === "interrupted-resolved") {
+            // Construct the exact committed DDL + successful Prisma resolve
+            // boundary, before the additive migration could deploy.
+            await db.query(`BEGIN; ALTER TABLE "User" ADD COLUMN "birthYear" integer, ADD COLUMN "birthMonth" integer, ADD COLUMN "birthDay" integer; COMMENT ON COLUMN "User"."birthYear" IS 'customers-club:nullable-legacy-birthday:v1'; COMMENT ON COLUMN "User"."birthMonth" IS 'customers-club:nullable-legacy-birthday:v1'; COMMENT ON COLUMN "User"."birthDay" IS 'customers-club:nullable-legacy-birthday:v1'; COMMIT`);
+            fs.cpSync(path.join(root, birthday), path.join(copied, birthday), { recursive: true });
+            assert.equal(cli(["migrate", "resolve", "--applied", birthday], config), true);
+        }
         if (scenario === "partial-drift") await db.query(`ALTER TABLE "User" ADD COLUMN "birthYear" integer`);
         if (scenario === "history-drift") await db.query(`UPDATE "_prisma_migrations" SET checksum='unknown' WHERE migration_name=(SELECT min(migration_name) FROM "_prisma_migrations")`);
         if (scenario.endsWith("drift")) {
@@ -66,7 +73,7 @@ async function main(scenario) {
             const user = (await db.query(`SELECT "birthYear","birthMonth","birthDay","firstName","lastName" FROM "User" WHERE phone='09123456789'`)).rows[0];
             assert.deepEqual(user, { birthYear: 1375, birthMonth: 7, birthDay: 12, firstName: "Existing", lastName: "Member" });
         }
-        if (["populated", "failed"].includes(scenario)) {
+        if (["populated", "failed", "interrupted-resolved"].includes(scenario)) {
             const { PrismaClient } = require("../../src/generated/prisma");
             const { PrismaPg } = require("@prisma/adapter-pg");
             const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: raw }) });

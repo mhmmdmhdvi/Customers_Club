@@ -13,7 +13,7 @@ import (
 )
 
 func TestLegacyPrismaMigrationHistories(t *testing.T) {
-	for _, scenario := range []string{"fresh", "populated", "failed", "already-applied", "partial-drift", "history-drift"} {
+	for _, scenario := range []string{"fresh", "populated", "failed", "interrupted-resolved", "already-applied", "partial-drift", "history-drift"} {
 		t.Run(scenario, func(t *testing.T) {
 			pool := OpenEmpty(t)
 			cfg := pool.Config().ConnConfig
