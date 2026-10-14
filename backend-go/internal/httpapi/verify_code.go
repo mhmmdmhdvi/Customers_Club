@@ -50,10 +50,7 @@ func handleVerifyCode(
 		return
 	}
 
-	body, valid := readAuthJSON(w, r)
-	if !valid {
-		return
-	}
+	body := requestJSON(r)
 	if missingAuthValue(body["phone"]) {
 		writeOTPMessage(
 			w,

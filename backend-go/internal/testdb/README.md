@@ -55,3 +55,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-postgres.ps1 -A
 Remove-Item Env:MIGRATION_TEST_DATABASE_URL -ErrorAction SilentlyContinue
 Remove-Item Env:ALLOW_MIGRATION_TEST_DATABASE -ErrorAction SilentlyContinue
 ```
+
+`-InstanceName <name>` selects a separate owned cluster directory/environment
+under the same ignored scratch root; the default `postgres` preserves the paths
+above. `-StartupControllerTimeoutSeconds` bounds the controller wait (default
+35, range 1–60). A failed or timed-out startup is tracked before spawning, then
+shutdown is attempted only after checking its exact generated path and marker.
+
+The opted-in Windows Go suite includes `TestNativeFailedStartupStopsItsOwnedChild`.
+It runs `scripts/tests/test-postgres-startup-failure.ps1` with a compiled controller
+fixture that starts a real PostgreSQL child in separate named owned namespaces,
+then exits nonzero or times out. Both cases require a ready child, stopped PID,
+and no published environment file. It never stops the default shared cluster.
+It retains diagnostic directories and safely stops any RED orphan it created.

@@ -1607,6 +1607,647 @@
           "contentType": "application/json"
         }
       }
+    },
+    {
+      "name": "gzip compressed JSON",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "1f8b080000000000000aab562ac8c8cf4b55b25232b034343234323631353357aa05002eec859f17000000",
+      "requestHeaders": {
+        "Content-Encoding": "gzip"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ]
+    },
+    {
+      "name": "gzip decompressed limit",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "1f8b080000000000000aedc13b0e40401400c0bbbc5a61d72ff636128206a544dcdd41cccc13d7761e4b94a8c794536edaae1fa28a6b9ae7fd58a3c40d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f013f17e8215f69224900100",
+      "requestHeaders": {
+        "Content-Encoding": "gzip"
+      },
+      "status": 413,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Request body too large"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "gzip malformed stream",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "deadbeef",
+      "requestHeaders": {
+        "Content-Encoding": "gzip"
+      },
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "deflate compressed JSON",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "789cab562ac8c8cf4b55b25232b034343234323631353357aa05004fc8060d",
+      "requestHeaders": {
+        "Content-Encoding": "deflate"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ]
+    },
+    {
+      "name": "deflate decompressed limit",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "789cedc13b0e40401400c0bbbc5a61d72ff636128206a544dcdd41cccc13d7761e4b94a8c794536edaae1fa28a6b9ae7fd58a3c40d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f013f17edfe694c7",
+      "requestHeaders": {
+        "Content-Encoding": "deflate"
+      },
+      "status": 413,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Request body too large"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "deflate malformed stream",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "deadbeef",
+      "requestHeaders": {
+        "Content-Encoding": "deflate"
+      },
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "br compressed JSON",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "0b0b807b2270686f6e65223a223039313231323334353637227d03",
+      "requestHeaders": {
+        "Content-Encoding": "br"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ]
+    },
+    {
+      "name": "br decompressed limit",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "5b23900146112a1dc26d94fae585e763e62488b00107cc8136c92013f065c0a42223ca23690ebae626b27a10ce279e7b1870c907",
+      "requestHeaders": {
+        "Content-Encoding": "br"
+      },
+      "status": 413,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Request body too large"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "br malformed stream",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "deadbeef",
+      "requestHeaders": {
+        "Content-Encoding": "br"
+      },
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "gzip before UTF16 decoding",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBodyHex": "1f8b080000000000000a1dc3d10980201400c09be54d60a589ed23f495fd47bb0b1edc27bc6ec3a30b9790349b7d3d64c5a90abf09ed864ae52e000000",
+      "requestContentType": "application/json; charset=utf-16le",
+      "requestHeaders": {
+        "Content-Encoding": "GZIP"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ]
+    },
+    {
+      "name": "unknown content encoding",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBody": "{\"phone\":\"09121234567\"}",
+      "requestHeaders": {
+        "Content-Encoding": "unknown"
+      },
+      "status": 415,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Unsupported content encoding"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "non JSON unknown encoding skipped",
+      "method": "POST",
+      "path": "/auth/request-code",
+      "rawBody": "{\"phone\":\"09121234567\"}",
+      "requestContentType": "text/plain",
+      "requestHeaders": {
+        "Content-Encoding": "unknown"
+      },
+      "status": 400,
+      "json": {
+        "message": "Phone is required"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": []
+    },
+    {
+      "name": "global parser GET /auth/request-code",
+      "method": "GET",
+      "path": "/auth/request-code",
+      "rawBody": "{",
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "global parser GET /health",
+      "method": "GET",
+      "path": "/health",
+      "rawBody": "{",
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "global parser POST /health",
+      "method": "POST",
+      "path": "/health",
+      "rawBody": "{",
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "global parser POST /missing",
+      "method": "POST",
+      "path": "/missing",
+      "rawBody": "{",
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "global parser OPTIONS /auth/request-code",
+      "method": "OPTIONS",
+      "path": "/auth/request-code",
+      "rawBody": "{",
+      "status": 400,
+      "calls": [],
+      "runtime": {
+        "node": {
+          "bodyContains": "<!DOCTYPE html>",
+          "contentType": "text/html",
+          "headers": {
+            "content-security-policy": "default-src 'none'"
+          }
+        },
+        "go": {
+          "json": {
+            "message": "Invalid request body"
+          },
+          "contentType": "application/json"
+        }
+      }
+    },
+    {
+      "name": "allowed preflight before malformed JSON",
+      "method": "OPTIONS",
+      "path": "/auth/request-code",
+      "rawBody": "{",
+      "requestHeaders": {
+        "Origin": "http://localhost:5173",
+        "Access-Control-Request-Method": "POST"
+      },
+      "status": 204,
+      "empty": true,
+      "calls": [],
+      "headers": {
+        "access-control-allow-origin": "http://localhost:5173",
+        "access-control-allow-credentials": "true",
+        "access-control-expose-headers": "X-Request-Id",
+        "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+        "access-control-allow-headers": "Content-Type,Authorization,X-CSRF-Protection",
+        "access-control-max-age": "600"
+      }
+    },
+    {
+      "name": "route form /health/",
+      "method": "GET",
+      "path": "/health/",
+      "status": 200,
+      "json": {
+        "status": "ok",
+        "service": "customer-club-api"
+      },
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /HEALTH",
+      "method": "GET",
+      "path": "/HEALTH",
+      "status": 200,
+      "json": {
+        "status": "ok",
+        "service": "customer-club-api"
+      },
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /HeAlTh/",
+      "method": "GET",
+      "path": "/HeAlTh/",
+      "status": 200,
+      "json": {
+        "status": "ok",
+        "service": "customer-club-api"
+      },
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /auth/request-code/",
+      "method": "POST",
+      "path": "/auth/request-code/",
+      "body": {
+        "phone": "09121234567"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /AUTH/REQUEST-CODE",
+      "method": "POST",
+      "path": "/AUTH/REQUEST-CODE",
+      "body": {
+        "phone": "09121234567"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /Auth/Request-Code/",
+      "method": "POST",
+      "path": "/Auth/Request-Code/",
+      "body": {
+        "phone": "09121234567"
+      },
+      "status": 200,
+      "json": {
+        "message": "Code sent"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "create",
+          "phone": "09121234567"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /auth/verify-code/",
+      "method": "POST",
+      "path": "/auth/verify-code/",
+      "body": {
+        "phone": "09121234567",
+        "code": "123456"
+      },
+      "status": 200,
+      "json": {
+        "message": "OTP verified",
+        "nextStep": "REGISTER",
+        "authenticated": false,
+        "verificationToken": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "verificationExpiresAt": "2030-01-01T00:05:00.000Z"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "verify",
+          "phone": "09121234567",
+          "code": "123456"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /AUTH/VERIFY-CODE",
+      "method": "POST",
+      "path": "/AUTH/VERIFY-CODE",
+      "body": {
+        "phone": "09121234567",
+        "code": "123456"
+      },
+      "status": 200,
+      "json": {
+        "message": "OTP verified",
+        "nextStep": "REGISTER",
+        "authenticated": false,
+        "verificationToken": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "verificationExpiresAt": "2030-01-01T00:05:00.000Z"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "verify",
+          "phone": "09121234567",
+          "code": "123456"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "route form /Auth/Verify-Code/",
+      "method": "POST",
+      "path": "/Auth/Verify-Code/",
+      "body": {
+        "phone": "09121234567",
+        "code": "123456"
+      },
+      "status": 200,
+      "json": {
+        "message": "OTP verified",
+        "nextStep": "REGISTER",
+        "authenticated": false,
+        "verificationToken": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "verificationExpiresAt": "2030-01-01T00:05:00.000Z"
+      },
+      "headers": {
+        "cache-control": "no-store"
+      },
+      "calls": [
+        {
+          "operation": "verify",
+          "phone": "09121234567",
+          "code": "123456"
+        }
+      ],
+      "absentHeaders": [
+        "location"
+      ]
+    },
+    {
+      "name": "bodyless health skips JSON encoding validation",
+      "method": "GET",
+      "path": "/health",
+      "requestContentType": "application/json; charset=iso-8859-1",
+      "requestHeaders": {
+        "Content-Encoding": "unknown"
+      },
+      "status": 200,
+      "json": {
+        "status": "ok",
+        "service": "customer-club-api"
+      },
+      "calls": []
     }
   ]
 }

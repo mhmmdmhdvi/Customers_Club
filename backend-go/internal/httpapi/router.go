@@ -3,85 +3,65 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 func NewRouter() http.Handler {
-	return NewRouterWithDependencies(
-		RouterDependencies{},
-	)
+	return NewRouterWithDependencies(RouterDependencies{})
 }
 
-func NewRouterWithDependencies(
-	deps RouterDependencies,
-) http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc(
-		"GET /health",
-		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set(
-				"Content-Type",
-				"application/json",
-			)
-
-			w.WriteHeader(http.StatusOK)
-
-			_ = json.NewEncoder(w).Encode(
-				struct {
-					Status  string `json:"status"`
-					Service string `json:"service"`
-				}{
-					Status:  "ok",
-					Service: "customer-club-api",
-				},
-			)
-		},
-	)
-
-	mux.HandleFunc(
-		"POST /auth/request-code",
-		func(w http.ResponseWriter, r *http.Request) {
-			handleRequestCode(
-				w,
-				r,
-				deps.RequestCode,
-			)
-		},
-	)
-
-	mux.HandleFunc(
-		"POST /auth/verify-code",
-		func(w http.ResponseWriter, r *http.Request) {
-			handleVerifyCode(
-				w,
-				r,
-				deps.VerifyCode,
-			)
-		},
-	)
-
-	// Express answers unmatched methods with 404, and automatically advertises
-	// existing route methods for OPTIONS even when CORS withholds browser grants.
-	for path, methods := range map[string]string{
-		"/health":            "GET, HEAD",
-		"/auth/request-code": "POST",
-		"/auth/verify-code":  "POST",
-	} {
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodOptions {
-				w.Header().Set("Allow", methods)
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				_, _ = w.Write([]byte(methods))
+func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
+	// Dispatch explicitly rather than ServeMux's path cleaning/redirects: Express
+	// matches these routes case-insensitively with an optional trailing slash and
+	// never redirects credential POSTs. Match the escaped path so encoded static
+	// route letters do not accidentally become a different accepted endpoint.
+	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := asciiLower(strings.TrimSuffix(r.URL.EscapedPath(), "/"))
+		methods := ""
+		switch path {
+		case "/health":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				if r.Method != http.MethodHead {
+					_ = json.NewEncoder(w).Encode(struct {
+						Status  string `json:"status"`
+						Service string `json:"service"`
+					}{Status: "ok", Service: "customer-club-api"})
+				}
 				return
 			}
-			writeSecurityError(w, http.StatusNotFound, "Not found")
-		})
-	}
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		case "/auth/request-code":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleRequestCode(w, r, deps.RequestCode)
+				return
+			}
+		case "/auth/verify-code":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleVerifyCode(w, r, deps.VerifyCode)
+				return
+			}
+		}
+		if methods != "" && r.Method == http.MethodOptions {
+			w.Header().Set("Allow", methods)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte(methods))
+			return
+		}
 		writeSecurityError(w, http.StatusNotFound, "Not found")
 	})
-	return requestIDMiddleware(
-		mux,
-		newRequestID,
-	)
+	return requestIDMiddleware(withJSONBoundary(router), newRequestID)
+}
+
+func asciiLower(s string) string {
+	data := []byte(s)
+	for i, c := range data {
+		if c >= 'A' && c <= 'Z' {
+			data[i] = c + ('a' - 'A')
+		}
+	}
+	return string(data)
 }

@@ -43,8 +43,10 @@ for (const fixture of fixtures.cases) {
     scenario = fixture.scenario;
     calls = [];
     let req = request(app)[fixture.method.toLowerCase()](fixture.path)
+      .redirects(0)
       .set("X-Forwarded-For", "203.0.113.99").set("X-Request-Id", "client-controlled");
     for (const [key, value] of Object.entries(fixture.requestHeaders ?? {})) req = req.set(key, value);
+    if (fixture.requestContentType !== undefined) req = req.set("Content-Type", fixture.requestContentType);
     if (fixture.rawBodyHex !== undefined) req = req.set("Content-Type", fixture.requestContentType ?? "application/json")
       .serialize((bytes) => bytes).send(Buffer.from(fixture.rawBodyHex, "hex"));
     else if (fixture.oversized) req = req.set("Content-Type", "application/json").send(JSON.stringify({ phone: "09121234567", padding: "x".repeat(100 * 1024) }));

@@ -2,19 +2,51 @@ package httpapi
 
 import (
 	"bytes"
+	"compress/gzip"
+	"compress/zlib"
+	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
 
+	"github.com/andybalholm/brotli"
 	"golang.org/x/text/encoding/unicode"
 )
+
+type jsonBodyKey struct{}
+
+// WithBrowserPolicy handles allowed preflights before this boundary. All other
+// requests are parsed once before path/method selection, like express.json().
+func withJSONBoundary(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, valid := readAuthJSON(w, r)
+		if !valid {
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), jsonBodyKey{}, body)))
+	})
+}
+
+func requestJSON(r *http.Request) map[string]any {
+	body, _ := r.Context().Value(jsonBodyKey{}).(map[string]any)
+	return body
+}
+
+func writeJSONBodyError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Cache-Control", "no-store")
+	writeOTPMessage(w, status, message)
+}
 
 // Like express.json, parse only application/json and accept object/array roots.
 // Map lookup is deliberately case sensitive, matching JavaScript property access.
 func readAuthJSON(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+	// body-parser skips requests with neither Content-Length nor transfer coding
+	// before charset/content-encoding checks. Do not reject bodyless public GETs.
+	if r.Body == nil || (r.ContentLength == 0 && len(r.TransferEncoding) == 0 && r.Header.Get("Content-Length") == "") {
+		return nil, true
+	}
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		return nil, true
@@ -26,17 +58,41 @@ func readAuthJSON(w http.ResponseWriter, r *http.Request) (map[string]any, bool)
 	switch charset {
 	case "utf-8", "utf-16", "utf-16le", "utf-16be":
 	default:
-		writeOTPMessage(w, http.StatusUnsupportedMediaType, "Unsupported JSON charset")
+		writeJSONBodyError(w, http.StatusUnsupportedMediaType, "Unsupported JSON charset")
 		return nil, false
 	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 100*1024))
+	var source io.Reader = r.Body
+	var decompressor io.ReadCloser
+	encoding := strings.ToLower(r.Header.Get("Content-Encoding"))
+	switch encoding {
+	case "", "identity":
+	case "gzip":
+		decompressor, err = gzip.NewReader(r.Body)
+	case "deflate":
+		decompressor, err = zlib.NewReader(r.Body)
+	case "br":
+		source = brotli.NewReader(r.Body)
+	default:
+		writeJSONBodyError(w, http.StatusUnsupportedMediaType, "Unsupported content encoding")
+		return nil, false
+	}
 	if err != nil {
-		var limit *http.MaxBytesError
-		if errors.As(err, &limit) {
-			writeOTPMessage(w, http.StatusRequestEntityTooLarge, "Request body too large")
-		} else {
-			writeOTPMessage(w, http.StatusBadRequest, "Invalid request body")
-		}
+		writeJSONBodyError(w, http.StatusBadRequest, "Invalid request body")
+		return nil, false
+	}
+	if decompressor != nil {
+		defer decompressor.Close()
+		source = decompressor
+	}
+	// Limit decompressed bytes, not Content-Length or the compressed stream.
+	// Reading one byte past the limit distinguishes exactly 100 KiB from excess.
+	data, err := io.ReadAll(io.LimitReader(source, 100*1024+1))
+	if len(data) > 100*1024 {
+		writeJSONBodyError(w, http.StatusRequestEntityTooLarge, "Request body too large")
+		return nil, false
+	}
+	if err != nil {
+		writeJSONBodyError(w, http.StatusBadRequest, "Invalid request body")
 		return nil, false
 	}
 	if len(data) == 0 {
@@ -49,7 +105,7 @@ func readAuthJSON(w http.ResponseWriter, r *http.Request) (map[string]any, bool)
 		}
 		data, err = unicode.UTF16(endian, unicode.IgnoreBOM).NewDecoder().Bytes(data)
 		if err != nil {
-			writeOTPMessage(w, http.StatusBadRequest, "Invalid request body")
+			writeJSONBodyError(w, http.StatusBadRequest, "Invalid request body")
 			return nil, false
 		}
 	}
@@ -57,7 +113,7 @@ func readAuthJSON(w http.ResponseWriter, r *http.Request) (map[string]any, bool)
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
 	var value any
 	if err := json.Unmarshal(data, &value); err != nil {
-		writeOTPMessage(w, http.StatusBadRequest, "Invalid request body")
+		writeJSONBodyError(w, http.StatusBadRequest, "Invalid request body")
 		return nil, false
 	}
 	switch body := value.(type) {
@@ -66,7 +122,7 @@ func readAuthJSON(w http.ResponseWriter, r *http.Request) (map[string]any, bool)
 	case []any:
 		return nil, true
 	default:
-		writeOTPMessage(w, http.StatusBadRequest, "Invalid request body")
+		writeJSONBodyError(w, http.StatusBadRequest, "Invalid request body")
 		return nil, false
 	}
 }

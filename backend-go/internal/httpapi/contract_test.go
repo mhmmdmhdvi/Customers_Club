@@ -136,7 +136,9 @@ func TestSharedHTTPContracts(t *testing.T) {
 			for k, v := range fixture.RequestHeaders {
 				req.Header.Set(k, v)
 			}
-			res, err := server.Client().Do(req)
+			client := server.Client()
+			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			res, err := client.Do(req)
 			if err != nil {
 				t.Fatal(err)
 			}
