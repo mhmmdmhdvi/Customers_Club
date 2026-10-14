@@ -39,7 +39,6 @@ function createAuthController({ otpService, registrationService }) {
       });
     } catch (error) {
       if (otpFailure(res, error)) return;
-      if (otpFailure(res, error)) return;
       console.error("Failed to create OTP");
 
       return res.status(500).json({

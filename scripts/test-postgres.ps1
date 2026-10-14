@@ -6,7 +6,7 @@ disposable credentials and is ignored by git. See internal/testdb/README.md.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Start', 'Load', 'Status', 'Stop')]
+    [ValidateSet('Start', 'Restart', 'Load', 'Status', 'Stop')]
     [string]$Action = 'Start',
     [string]$PostgresBin = 'C:/Program Files/PostgreSQL/18/bin',
     [ValidatePattern('^[a-z][a-z0-9-]{0,47}$')]
@@ -93,6 +93,18 @@ if (-not (Test-Path -LiteralPath $pgCtl)) { throw 'PostgreSQL binaries unavailab
 if ($Action -ne 'Start') {
     $state = Owned-State
     switch ($Action) {
+        'Restart' {
+            & $pgCtl -D $state.DataDirectory status *> $null
+            if ($LASTEXITCODE -eq 0) { throw 'Owned cluster is already running; use Load.' }
+            if (Test-Path -LiteralPath (Join-Path $state.DataDirectory 'postmaster.pid')) { throw 'Refusing restart while a postmaster PID file exists.' }
+            try {
+                Start-OwnedCluster $state.DataDirectory (Join-Path (Split-Path -Parent $state.DataDirectory) 'postgres.log')
+            } catch {
+                Stop-OwnedClusterAfterFailure $state.DataDirectory (Split-Path -Parent $state.DataDirectory)
+                throw
+            }
+            Write-Host 'Owned cluster restarted; credentials and diagnostics retained.'
+        }
         'Load' {
             $env:MIGRATION_TEST_DATABASE_URL = $state.MIGRATION_TEST_DATABASE_URL
             $env:ALLOW_MIGRATION_TEST_DATABASE = '1'
@@ -109,7 +121,7 @@ if ($Action -ne 'Start') {
     }
     return
 }
-if (Test-Path -LiteralPath $envFile) { throw 'An owned environment file already exists. Use Load/Status/Stop; Start never replaces an existing cluster.' }
+if (Test-Path -LiteralPath $envFile) { throw 'An owned environment file already exists. Use Restart/Load/Status/Stop; Start never replaces an existing cluster.' }
 
 $clusterId = Random-Hex 8
 $ownerRole = 'mig_owner_' + $clusterId

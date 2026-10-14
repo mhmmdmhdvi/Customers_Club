@@ -16,6 +16,7 @@ $repo = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $destination = [IO.Path]::GetFullPath($Output)
 if (-not (Test-Path -LiteralPath (Split-Path -Parent $destination))) { throw 'Output directory must already exist.' }
 . (Join-Path $PSScriptRoot 'test-postgres.ps1') -Action Load
+Remove-Item Env:MIGRATION_PERFORMANCE_CANDIDATE, Env:MIGRATION_PERFORMANCE_FLUSH_GIN -ErrorAction SilentlyContinue
 $env:ALLOW_MIGRATION_PERFORMANCE = '1'
 $env:MIGRATION_PERFORMANCE_OUTPUT = $destination
 if ($TrigramCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'trigram' }

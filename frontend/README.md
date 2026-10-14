@@ -1,16 +1,9 @@
-# React + Vite
+# Customer Club frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19/Vite 8 browser application. Requires Node 24.20.0. Install with `npm ci --ignore-scripts`, then run `npm test`, `npm run lint` (warnings fail), and `npm run build`.
 
-Currently, two official plugins are available:
+`VITE_API_BASE_URL` is compiled into the bundle. Use `/api` behind the supplied nginx so SPA navigation `/admin` and `/login` remains HTML while `/api/admin/...` reaches Go. Rebuild after any base change. Local standalone development defaults to `http://localhost:3000`; configure the API allowed origin for Vite's actual localhost origin. `.env.example` documents the same-site base.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Access credentials remain in memory. The provider renews before expiry, coordinates cookie mutations across tabs with Web Locks and localStorage, rejects stale lifecycle results, and retries only eligible protected reads. Ambiguous single-use proof/refresh/registration/MFA/logout mutations are never retried automatically. `/api` is added exactly once; relative-base cookie responses clear safety blocks within the same lock.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+WebOTP is optional; manual six-digit input remains supported. New registrations require valid complete past Jalali birthdays, while legacy unknown birthdays remain null. Layout/UI work is deferred. See [deployment](../docs/deployment.md) and [API contracts](../backend-go/README.md).

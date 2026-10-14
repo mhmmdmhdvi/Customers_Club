@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func NewRouter() http.Handler {
@@ -24,6 +26,23 @@ func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
 		}
 		methods := ""
 		switch path {
+		case "/ready":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+				defer cancel()
+				w.Header().Set("Cache-Control", "no-store")
+				if deps.Ready == nil || deps.Ready(ctx) != nil {
+					writeSecurityError(w, 503, "Service unavailable")
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				if r.Method != http.MethodHead {
+					_, _ = w.Write([]byte(`{"status":"ready"}`))
+				}
+				return
+			}
 		case "/contact/messages":
 			methods = "POST"
 			if r.Method == http.MethodPost {

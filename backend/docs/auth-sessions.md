@@ -1,11 +1,12 @@
 # Member login sessions
 
+> Historical checkpoint and incident evidence below is retained. For current Go/Node runtime, SMS, birthday and deployment behavior, see [current operations](../../docs/deployment.md) and [API routes](../../backend-go/README.md).
 > OTP behavior is now extended by [OTP release safeguards](otp-release-safeguards.md).
 > Historical migration/test counts below describe the prior session checkpoint.
 > The subsequent Windows test-only rehearsal and all 30 DB checks passed (user-reported).
 > See the current verification record in OTP release safeguards. Do not repeat migration five.
 > The normal development database was not migrated by that rehearsal.
-> Runtime SMS is not implemented; test checkers explicitly use fake delivery.
+> Runtime FarazSMS delivery is implemented and requires provider configuration; test checkers explicitly use fake delivery. Live-provider delivery was not tested.
 
 ## Scope and current migration boundary
 
@@ -44,7 +45,7 @@ No wildcard, reflected unapproved origin, form-body authentication, or permissiv
 SameSite=None fallback is used. Postman can omit Origin but must send the header.
 
 ### Register and log in immediately
-`POST /auth/register` body: `{ verificationToken, firstName, lastName }`.
+`POST /auth/register` body: `{ verificationToken, firstName, lastName, birthYear, birthMonth, birthDay }`. A real complete past Jalali birthday is required.
 Only these fields are accepted. The proof supplies phone and the server sets MEMBER.
 Return 201 after account, proof consumption and session persistence commit together.
 Signing/persistence failure rolls everything back. No second OTP is needed.

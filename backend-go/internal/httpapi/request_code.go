@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/events"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
-	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/phone"
 )
 
@@ -25,6 +23,7 @@ type RequestCodeService interface {
 }
 
 type RouterDependencies struct {
+	Ready       func(context.Context) error
 	RequestCode RequestCodeService
 	VerifyCode  VerifyCodeService
 	Session     SessionService
@@ -82,20 +81,7 @@ func handleRequestCode(
 		return
 	}
 
-	// Use the connection peer address.
-	// Never trust X-Forwarded-For from the client.
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-
-	if err != nil {
-		writeOTPMessage(
-			w,
-			http.StatusServiceUnavailable,
-			"OTP service unavailable",
-		)
-		return
-	}
-
-	normalizedIP, err := otpip.Normalize(host)
+	normalizedIP, err := requestIP(r)
 
 	if err != nil {
 		writeOTPMessage(

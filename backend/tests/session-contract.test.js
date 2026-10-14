@@ -25,7 +25,8 @@ const filename=require.resolve('../src/services/session.service');
 require.cache[filename]={id:filename,filename,loaded:true,exports:{register:async(input)=>realService?reference.register(input):grant(),login:async(input)=>realService?reference.login(input):grant(),completeAdminMfa:async(input)=>realService?reference.completeAdminMfa(input):grant(),refresh:async()=>grant(),logout:async()=>{},authenticate:async()=>({user:grant().user,sessionId:'session'})}};
 process.env.ACCESS_TOKEN_SECRET='a'.repeat(64);process.env.JWT_ISSUER='tests';process.env.JWT_AUDIENCE='tests';process.env.AUTH_ALLOWED_ORIGINS='http://localhost:5173';
 const app=require('../src/app');
-for(const f of fixtures.cases) test(`shared session contract: ${f.name}`,async()=>{
+for(const f of fixtures.cases) test(`shared session contract: ${f.name}`,async(t)=>{
+ const diagnostic=t.mock.method(console,"error",()=>{});
  scenario=f.scenario;realService=f.realService;process.env.NODE_ENV=f.production?'production':'test';process.env.AUTH_ALLOWED_ORIGINS=f.production?'https://club.example':'http://localhost:5173';
  let req=request(app)[f.method.toLowerCase()](f.path).redirects(0);
  if(!f.noCSRF)req=req.set('X-CSRF-Protection','1');
@@ -33,7 +34,7 @@ for(const f of fixtures.cases) test(`shared session contract: ${f.name}`,async()
  if(f.largeCookie)req=req.set('Cookie','x'.repeat(f.largeCookie));
  if(f.largeAuthorization)req=req.set('Authorization','Bearer '+'a'.repeat(f.largeAuthorization-11)+'.b.c');
  if(f.raw!==undefined)req=req.set('Content-Type',f.contentType??'application/json').send(f.raw);else if(f.body!==undefined)req=req.send(f.body);
- const res=await req;assert.equal(res.status,f.status);assert.equal(res.headers['cache-control'],f.runtime?.node?.noCacheHeader?undefined:'no-store');
+ const res=await req;assert.deepEqual(diagnostic.mock.calls.map(call=>call.arguments),f.scenario==="unexpected"?[["Authentication operation failed"]]:[]);assert.equal(res.status,f.status);assert.equal(res.headers['cache-control'],f.runtime?.node?.noCacheHeader?undefined:'no-store');
  const expected={...f,...f.runtime?.node};if(expected.json)assert.deepEqual(res.body,expected.json);if(expected.bodyContains)assert.ok(res.text.includes(expected.bodyContains));
  if(f.empty)assert.equal(res.text??'','');if(f.me)assert.deepEqual(res.body,{user});
  if(f.grant){assert.deepEqual(res.body,{message:f.message,authenticated:true,user,tokenType:'Bearer',accessToken:'a.b.c',expiresIn:900,accessExpiresAt:'2030-01-01T00:15:00.000Z'});const cookie=res.headers['set-cookie'][0];assert.ok(cookie.startsWith((f.production?'__Host-club_refresh':'club_refresh')+'='+'b'.repeat(64)));assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Strict/);assert.match(cookie,/Path=\//);if(f.production)assert.match(cookie,/Secure/);}

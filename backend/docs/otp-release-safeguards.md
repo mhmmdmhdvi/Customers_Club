@@ -1,11 +1,12 @@
 # OTP release safeguards
 
+> Historical checkpoint and incident evidence below is retained. For current Go/Node runtime, SMS, birthday and deployment behavior, see [current operations](../../docs/deployment.md) and [API routes](../../backend-go/README.md).
 Implementation base: a26edfdeac0bb9f7a0e4f83c61fdf0350b0390ba.
 Branch: feat/otp-release-safeguards. This change is not production-release approval.
 The earlier four migrations and session behavior are preserved. The NEW fifth
 migration is supplied for review, not executed by the application bundle.
 
-## Current local verification record (after the UTC clock fix)
+## Historical local verification record (after the UTC clock fix)
 
 The user reported successful completion of the Windows clock-fix/resume runner
 on feat/otp-release-safeguards. This is local user-reported evidence, not GitHub
@@ -97,11 +98,11 @@ to commit; the error is thrown only after commit. Correct-code consumption invok
 registration proof creation inside that same transaction. A proof insert failure
 rolls back consumption. Existing registration/session issuance is not rewritten.
 
-## Delivery boundary — NOT implemented SMS
+## Delivery boundary — configured FarazSMS
 
-The sender is injected. backend/src/services/otp-delivery.js intentionally refuses
-to supply a runtime sender until real SMS is integrated. Therefore a normal
-request-code call returns 503 until key configuration AND a real provider are ready.
+The sender is injected for tests. Runtime Node and Go send FarazSMS pattern requests
+with explicit API key, line number and pattern code; missing configuration or
+provider failure returns 503. Live delivery was not performed during this migration.
 There is no development console-code or fake-success fallback. Manual test scripts
 explicitly inject an in-memory fake sender; their results are not delivery evidence.
 

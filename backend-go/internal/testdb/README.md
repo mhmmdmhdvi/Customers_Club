@@ -20,8 +20,9 @@ credentials. The test role has CREATEDB and is not a superuser. The ignored,
 current-user-readable credential file is
 `.superpowers/sdd/2026-10-14-go-migration/postgres-env.json`. Do not print, commit,
 or copy its contents into reports. `Load` sets the two explicit test variables in
-the current PowerShell process. `Status` and `Stop` operate only on the matching
-owned cluster directory and marker. Stop retains diagnostic files. Start refuses
+the current PowerShell process. `Status`, `Restart` and `Stop` operate only on the matching
+owned cluster directory and marker. Stop retains diagnostic files. Restart validates ownership and refuses active clusters or stale PID files. It
+retains the same credentials and diagnostics. Start refuses
 to replace any existing environment file.
 
 For a local/CI cluster created independently, provision these exact identities:

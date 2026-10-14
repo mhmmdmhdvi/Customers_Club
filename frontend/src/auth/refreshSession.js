@@ -1,4 +1,4 @@
-import { API_BASE_URL, boundedFetch } from "./request";
+import { API_BASE_URL, apiPath, boundedFetch } from "./request";
 const REFRESH_LOCK_NAME = "club-auth-refresh";
 const REFRESH_BLOCKED_KEY = "club-auth-refresh-blocked";
 const REFRESH_STORAGE_PROBE_KEY =
@@ -129,7 +129,7 @@ export function credentialRequest(url, options) {
         assertRefreshStorageWritable();
         blockRefresh();
         const response = await boundedFetch(url, { ...options, signal });
-        const pathname = new URL(url, API_BASE_URL).pathname;
+        const pathname = apiPath(url);
         if (response.status === 204 && pathname === "/auth/logout") clearRefreshBlock();
         if (response.ok && ["/auth/login", "/auth/register", "/auth/login/mfa"].includes(pathname) && typeof response.json === "function") {
             const data = await response.json();

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../auth/request";
 import { useEffect, useState } from "react";
 import {
     Home,
@@ -10,8 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import megatiteMark from "../../assets/branding/megatite-mark.svg";
 import { credentialRequest } from "../../auth/refreshSession";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+
 
 const navigation = [
     { label: "رویدادها", href: "/#events" },

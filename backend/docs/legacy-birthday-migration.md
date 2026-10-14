@@ -18,13 +18,13 @@ Only this runner should reconcile the pending populated case. Running ordinary `
 
 ## Client generation and rehearsal
 
-Regenerate the ignored client after changing the nullable schema, using the same explicit dedicated configuration:
+Regenerate the ignored client without loading `.env` or selecting a database:
 
 ```powershell
-node node_modules/prisma/build/index.js generate --config prisma.legacy.config.cjs
+npm run generate:test
 ```
 
-Generation does not apply migrations. `go test ./internal/testdb -run TestLegacyPrismaMigrationHistories -count=1` from `backend-go`, with the owned test-cluster opt-in loaded, allocates unique empty databases and rehearses real Prisma histories for fresh, populated, failed pending, already-applied, partial-column drift and checksum drift cases. The subprocess URI is reconstructed from the child database configuration and checked against its ownership marker before any write. Rehearsal proves idempotence, constraint enforcement and actual Node Prisma reads of legacy null fields. Ordinary Go/Node tests require no developer environment file; the integration test skips without explicit disposable-cluster opt-in.
+Generation does not apply migrations. `go test ./internal/testdb -run TestLegacyPrismaMigrationHistories -count=1` from `backend-go`, with the owned test-cluster opt-in loaded, allocates unique empty databases and rehearses real Prisma histories for fresh, populated, failed pending, interrupted after resolve, already-applied, partial-column drift and checksum drift cases. The subprocess URI is reconstructed from the child database configuration and checked against its ownership marker before any write. Rehearsal proves idempotence, constraint enforcement and actual Node Prisma reads of legacy null fields. Ordinary Go/Node tests require no developer environment file; the integration test skips without explicit disposable-cluster opt-in.
 
 ## Verified backfill and optional enforcement
 

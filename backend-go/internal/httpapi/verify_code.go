@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
-	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/phone"
 )
 
@@ -113,20 +111,7 @@ func handleVerifyCode(
 		return
 	}
 
-	// Use the connection peer IP, not a client-supplied
-	// X-Forwarded-For header.
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-
-	if err != nil {
-		writeOTPMessage(
-			w,
-			http.StatusServiceUnavailable,
-			"OTP service unavailable",
-		)
-		return
-	}
-
-	normalizedIP, err := otpip.Normalize(host)
+	normalizedIP, err := requestIP(r)
 
 	if err != nil {
 		writeOTPMessage(

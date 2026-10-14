@@ -39,7 +39,8 @@ delete process.env.ADMIN_MFA_ENCRYPTION_KEY;
 const app = require("../src/app");
 
 for (const fixture of fixtures.cases) {
-  test(`shared contract: ${fixture.name}`, async () => {
+  test(`shared contract: ${fixture.name}`, async (t) => {
+    const diagnostic=t.mock.method(console,"error",()=>{});
     scenario = fixture.scenario;
     calls = [];
     let req = request(app)[fixture.method.toLowerCase()](fixture.path)
@@ -53,6 +54,7 @@ for (const fixture of fixtures.cases) {
     else if (fixture.rawBody !== undefined) req = req.set("Content-Type", fixture.requestContentType ?? "application/json").send(fixture.rawBody);
     else if (fixture.body !== undefined) req = req.send(fixture.body);
     const res = await req;
+    assert.deepEqual(diagnostic.mock.calls.map(call=>call.arguments),fixture.scenario==="unexpected"?[[fixture.path.toLowerCase().includes("request-code")?"Failed to create OTP":"Failed to verify OTP"]]:[]);
     assert.equal(res.status, fixture.status);
     const expected = { ...fixture, ...fixture.runtime?.node };
     if (expected.json !== undefined) {

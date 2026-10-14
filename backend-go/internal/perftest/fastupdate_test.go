@@ -77,6 +77,7 @@ func runGINFastupdateComparison(t *testing.T, output string) {
 			t.Fatal(err)
 		}
 		server := httptest.NewServer(httpapi.WithBrowserPolicy(httpapi.NewRouterWithDependencies(httpapi.RouterDependencies{Session: service, Auth: auth, Admin: admin.New(p)}), auth))
+		t.Cleanup(server.Close)
 		result := measure(t, server.URL, paths[3], token.AccessToken, p)
 		server.Close()
 		data.Results[mode] = []endpoint{result}

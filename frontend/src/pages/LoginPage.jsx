@@ -1,5 +1,5 @@
 import { credentialRequest } from "../auth/refreshSession";
-import { boundedFetch } from "../auth/request";
+import { API_BASE_URL, boundedFetch } from "../auth/request";
 import {
     useEffect,
     useRef,
@@ -12,8 +12,7 @@ import { BirthdayDatePicker } from "../components/ui/BirthdayDatePicker";
 import { SixDigitCodeInput } from "../components/ui/SixDigitCodeInput";
 import { useToast } from "../components/ui/ToastContext";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+
 
 export function LoginPage({
     onAuthenticated = () => { },
@@ -139,37 +138,6 @@ export function LoginPage({
         session,
     ]);
 
-    useEffect(() => {
-        if (
-            !pendingWebOtpCode ||
-            isRequestingCode ||
-            !autoVerifyEnabled ||
-            isLoading ||
-            step !== "code" ||
-            verification ||
-            session
-        ) {
-            return;
-        }
-
-        const receivedCode =
-            pendingWebOtpCode;
-
-        setPendingWebOtpCode("");
-        setAutoVerifyEnabled(false);
-
-        void verifySmsCode(
-            receivedCode,
-        );
-    }, [
-        pendingWebOtpCode,
-        isRequestingCode,
-        autoVerifyEnabled,
-        isLoading,
-        step,
-        verification,
-        session,
-    ]);
 
     async function handleResendCode() {
         if (
@@ -287,6 +255,44 @@ export function LoginPage({
         } finally {
             setIsRequestingCode(false);
         }
+    }
+
+    async function loginWithProof(verificationToken, signal) {
+        const response = await credentialRequest(
+                `${API_BASE_URL}/auth/login`,
+            {
+                signal,
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Protection": "1",
+                },
+                body: JSON.stringify({ verificationToken }),
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error("Login request failed");
+        }
+
+        const data = await response.json();
+
+        if (
+            data?.authenticated === false &&
+            data?.mfaRequired === true &&
+            typeof data?.mfaChallengeToken === "string" &&
+            /^[a-f0-9]{64}$/.test(data.mfaChallengeToken) &&
+            Number.isFinite(Date.parse(data?.mfaExpiresAt))
+        ) {
+            return {
+                mfaRequired: true,
+                mfaChallengeToken: data.mfaChallengeToken,
+                mfaExpiresAt: data.mfaExpiresAt,
+            };
+        }
+
+        return parseAuthenticatedSession(data);
     }
 
     async function verifySmsCode(rawCode) {
@@ -416,11 +422,42 @@ export function LoginPage({
         }
     }
 
-    function handleVerifyCode(event) {
-        event.preventDefault();
+    const verifySmsCodeRef = useRef(verifySmsCode);
+    useEffect(() => { verifySmsCodeRef.current = verifySmsCode; });
+    useEffect(() => {
+        if (
+            !pendingWebOtpCode ||
+            isRequestingCode ||
+            !autoVerifyEnabled ||
+            isLoading ||
+            step !== "code" ||
+            verification ||
+            session
+        ) {
+            return;
+        }
 
-        void verifySmsCode(code);
-    }
+        const receivedCode =
+            pendingWebOtpCode;
+
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled) return;
+            setPendingWebOtpCode("");
+            setAutoVerifyEnabled(false);
+            void verifySmsCodeRef.current(receivedCode);
+        });
+        return () => { cancelled = true; };
+    }, [
+        pendingWebOtpCode,
+        isRequestingCode,
+        autoVerifyEnabled,
+        isLoading,
+        step,
+        verification,
+        session,
+    ]);
+
 
     function handleCodeChange(nextCode) {
         setCode(nextCode);
@@ -555,43 +592,6 @@ export function LoginPage({
         }
     }
 
-    async function loginWithProof(verificationToken, signal) {
-        const response = await credentialRequest(
-                `${API_BASE_URL}/auth/login`,
-            {
-                signal,
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-Protection": "1",
-                },
-                body: JSON.stringify({ verificationToken }),
-            },
-        );
-
-        if (!response.ok) {
-            throw new Error("Login request failed");
-        }
-
-        const data = await response.json();
-
-        if (
-            data?.authenticated === false &&
-            data?.mfaRequired === true &&
-            typeof data?.mfaChallengeToken === "string" &&
-            /^[a-f0-9]{64}$/.test(data.mfaChallengeToken) &&
-            Number.isFinite(Date.parse(data?.mfaExpiresAt))
-        ) {
-            return {
-                mfaRequired: true,
-                mfaChallengeToken: data.mfaChallengeToken,
-                mfaExpiresAt: data.mfaExpiresAt,
-            };
-        }
-
-        return parseAuthenticatedSession(data);
-    }
 
     async function handleCompleteMfa(event) {
         event.preventDefault();

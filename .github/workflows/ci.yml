@@ -1,0 +1,62 @@
+name: migration verification
+on: [push, pull_request]
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.20.0'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend-go/go.sum
+      - name: Install without postinstall or developer environment
+        run: |
+          npm ci --ignore-scripts --prefix backend
+          npm ci --ignore-scripts --prefix frontend
+          npm run generate:test --prefix backend
+      - name: Offline compatibility and browser suites
+        run: |
+          npm test --prefix backend
+          npm test --prefix frontend
+          npm run lint --prefix frontend
+          VITE_API_BASE_URL=/api npm run build --prefix frontend
+          cd backend-go
+          go test ./... -count=1
+          go vet ./...
+          CGO_ENABLED=0 go build ./cmd/api
+          test -z "$(gofmt -l .)"
+      - name: Install native PostgreSQL18
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-18
+      - name: Start marked owned loopback database
+        run: bash scripts/ci-postgres.sh start
+      - name: Full owned integration, 296 shared cases, Prisma histories and race
+        working-directory: backend-go
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race ./... -count=1 -timeout=15m -v
+      - name: Audit owned catalog
+        if: always()
+        run: node scripts/testdb-audit.cjs
+      - name: Stop owned cluster, retain diagnostics
+        if: always()
+        run: bash scripts/ci-postgres.sh stop
+      - name: Build container images
+        run: |
+          docker build -f backend-go/Dockerfile -t club-api:ci .
+          docker build -f frontend/Dockerfile -t club-frontend:ci .
+          docker build -f deployment/migrations.Dockerfile -t club-migrations:ci .
+      - name: Fresh production stack provisioning and HTTPS smoke
+        run: bash scripts/ci-stack.sh

@@ -1,1 +1,5 @@
 /.superpowers/
+
+/deployment/*.env
+/deployment/secrets/
+/deployment/tls/

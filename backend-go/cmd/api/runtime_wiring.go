@@ -98,7 +98,17 @@ func initializeAPI(
 		config.OTP.Secret,
 		begin,
 		sender.SendOTP,
-		httpapi.RouterDependencies{Session: sessionService, Auth: config.Auth, Contact: contact.New(pool), Admin: admin.New(pool), Events: events.New(pool)},
+		httpapi.RouterDependencies{Ready: func(ctx context.Context) error {
+			var ready bool
+			err := pool.QueryRow(ctx, `SELECT to_regclass('public."User"') IS NOT NULL AND to_regclass('public."AuthSession"') IS NOT NULL AND to_regclass('public."SecurityEvent"') IS NOT NULL`).Scan(&ready)
+			if err != nil {
+				return err
+			}
+			if !ready {
+				return errors.New("schema unavailable")
+			}
+			return nil
+		}, Session: sessionService, Auth: config.Auth, Contact: contact.New(pool), Admin: admin.New(pool), Events: events.New(pool)},
 	)
 
 	if err != nil {
@@ -107,5 +117,5 @@ func initializeAPI(
 	}
 
 	// The caller owns cleanup after success.
-	return httpapi.WithBrowserPolicy(handler, config.Auth), pool.Close, nil
+	return httpapi.WithBrowserPolicy(httpapi.WithTrustedProxy(handler, config.TrustedProxies), config.Auth), pool.Close, nil
 }

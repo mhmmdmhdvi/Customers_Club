@@ -1,13 +1,46 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"testing"
 )
+
+func TestReadinessSeparatesDatabaseFailureFromLiveness(t *testing.T) {
+	unavailable := errors.New("private credentials")
+	for _, tc := range []struct {
+		name   string
+		ready  func(context.Context) error
+		status int
+	}{
+		{"missing", nil, 503}, {"database down", func(context.Context) error { return unavailable }, 503},
+		{"ready", func(ctx context.Context) error {
+			if _, ok := ctx.Deadline(); !ok {
+				t.Error("readiness must be bounded")
+			}
+			return nil
+		}, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewRouterWithDependencies(RouterDependencies{Ready: tc.ready})
+			for path, status := range map[string]int{"/health": 200, "/ready": tc.status} {
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+				if w.Code != status {
+					t.Errorf("%s: %d", path, w.Code)
+				}
+				if regexp.MustCompile("private credentials").Match(w.Body.Bytes()) {
+					t.Fatal("leaked readiness error")
+				}
+			}
+		})
+	}
+}
 
 func TestHealth(t *testing.T) {
 	router := NewRouter()

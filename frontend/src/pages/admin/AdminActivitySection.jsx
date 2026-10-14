@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../auth/request";
 import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     Activity,
@@ -9,9 +10,7 @@ import {
     useState,
 } from "react";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 function formatNumber(value) {
     return new Intl.NumberFormat(

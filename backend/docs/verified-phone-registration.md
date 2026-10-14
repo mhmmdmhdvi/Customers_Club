@@ -1,11 +1,12 @@
 # Verified-phone registration (review branch; not production-ready)
 
+> Historical checkpoint and incident evidence below is retained. For current Go/Node runtime, SMS, birthday and deployment behavior, see [current operations](../../docs/deployment.md) and [API routes](../../backend-go/README.md).
 > OTP behavior is now extended by [OTP release safeguards](otp-release-safeguards.md).
 > Historical migration/test counts below describe the prior session checkpoint.
 > The subsequent Windows test-only rehearsal and all 30 DB checks passed (user-reported).
 > See the current verification record in OTP release safeguards. Do not repeat migration five.
 > The normal development database was not migrated by that rehearsal.
-> Runtime SMS is not implemented; test checkers explicitly use fake delivery.
+> Runtime FarazSMS delivery is implemented and requires provider configuration; test checkers explicitly use fake delivery. Live-provider delivery was not tested.
 
 ## What changed
 
@@ -17,7 +18,7 @@
 - A proof expires after five minutes. New phones get `nextStep: REGISTER`; existing
   phones get `nextStep: LOGIN`. The purposes are stored server-side, not trusted
   from the client. Neither response means the user is logged in.
-- `POST /auth/register` accepts only `verificationToken`, `firstName`, `lastName`.
+- `POST /auth/register` accepts only `verificationToken`, `firstName`, `lastName`, `birthYear`, `birthMonth`, `birthDay`. New registrations require a valid complete past Jalali birthday; legacy records may retain null birthdays.
   It derives the phone from the stored REGISTER proof and always assigns MEMBER.
   The proof claim and User creation are one transaction. Proof replay/expiry
   returns 400; duplicate phone returns 409. A failed insert rolls back the claim.
@@ -49,7 +50,10 @@ POST /auth/register
 {
   "verificationToken": "<token-from-verify-code>",
   "firstName": "خسرو",
-  "lastName": "وفایی"
+  "lastName": "وفایی",
+  "birthYear": 1375,
+  "birthMonth": 7,
+  "birthDay": 12
 }
 ```
 

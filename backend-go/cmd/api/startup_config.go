@@ -8,17 +8,19 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/database"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/farazsms"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/httpapi"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpconfig"
 )
 
 // startupConfig contains the validated settings
 // required to initialize the Go API.
 type startupConfig struct {
-	Database database.Config
-	OTP      otpconfig.Config
-	Auth     authconfig.Config
-	SMS      farazsms.Config
-	MFAKey   []byte
+	Database       database.Config
+	OTP            otpconfig.Config
+	Auth           authconfig.Config
+	SMS            farazsms.Config
+	MFAKey         []byte
+	TrustedProxies httpapi.TrustedProxies
 }
 
 // readStartupConfig validates configuration
@@ -26,6 +28,10 @@ type startupConfig struct {
 func readStartupConfig(
 	env map[string]string,
 ) (startupConfig, error) {
+	proxies, err := httpapi.ParseTrustedProxies(env["TRUSTED_PROXY_CIDRS"])
+	if err != nil {
+		return startupConfig{}, err
+	}
 	// Validate PostgreSQL connection settings.
 	dbConfig, err := database.ConfigFromEnv(env)
 
@@ -77,10 +83,11 @@ func readStartupConfig(
 	}
 
 	return startupConfig{
-		Database: dbConfig,
-		OTP:      otpConfig,
-		Auth:     authConfig,
-		SMS:      smsConfig,
-		MFAKey:   mfaKey,
+		Database:       dbConfig,
+		OTP:            otpConfig,
+		Auth:           authConfig,
+		SMS:            smsConfig,
+		MFAKey:         mfaKey,
+		TrustedProxies: proxies,
 	}, nil
 }

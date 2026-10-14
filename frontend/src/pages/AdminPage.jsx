@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../auth/request";
 import { useAuthenticatedRequest } from "../auth/useAuthenticatedRequest";
 import {
     Activity,
@@ -17,9 +18,7 @@ import { useAuth } from "../auth/AuthContext";
 import { AdminUsersSection } from "./admin/AdminUsersSection";
 import { AdminSecuritySection } from "./admin/AdminSecuritySection";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 const adminNavigation = [
     {

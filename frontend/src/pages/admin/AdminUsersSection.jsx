@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../auth/request";
 import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     ShieldCheck,
@@ -9,9 +10,7 @@ import {
 } from "react";
 import { formatPersianBirthday } from "../../utils/formatPersianDate";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 const PAGE_SIZE = 20;
 

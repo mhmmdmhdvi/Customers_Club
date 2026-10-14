@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node --test",
-    "postinstall": "prisma skills sync || exit 0"
+    "test": "node --require ./tests/helpers/offline-test-env.js --test",
+    "generate:test": "prisma generate --config prisma.generate.config.cjs"
   },
   "keywords": [],
   "author": "",
@@ -25,7 +25,6 @@
     "pg": "^8.23.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
     "prisma": "7.10.0",
     "supertest": "7.2.2"
   },
