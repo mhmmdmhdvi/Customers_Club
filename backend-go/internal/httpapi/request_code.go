@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -44,54 +43,11 @@ func handleRequestCode(
 		return
 	}
 
-	// Limit the size of the incoming JSON body.
-	r.Body = http.MaxBytesReader(
-		w,
-		r.Body,
-		100*1024,
-	)
-
-	var body struct {
-		Phone any `json:"phone"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-
-	if err := decoder.Decode(&body); err != nil {
-		writeOTPMessage(
-			w,
-			http.StatusBadRequest,
-			"Invalid request body",
-		)
+	body, valid := readAuthJSON(w, r)
+	if !valid {
 		return
 	}
-
-	// Reject multiple JSON values in one request.
-	var extra any
-
-	if err := decoder.Decode(&extra); err != io.EOF {
-		writeOTPMessage(
-			w,
-			http.StatusBadRequest,
-			"Invalid request body",
-		)
-		return
-	}
-
-	missingPhone := body.Phone == nil
-
-	switch value := body.Phone.(type) {
-	case string:
-		missingPhone = value == ""
-
-	case float64:
-		missingPhone = value == 0
-
-	case bool:
-		missingPhone = !value
-	}
-
-	if missingPhone {
+	if missingAuthValue(body["phone"]) {
 		writeOTPMessage(
 			w,
 			http.StatusBadRequest,
@@ -100,7 +56,7 @@ func handleRequestCode(
 		return
 	}
 
-	rawPhone, ok := body.Phone.(string)
+	rawPhone, ok := body["phone"].(string)
 
 	if !ok {
 		writeOTPMessage(

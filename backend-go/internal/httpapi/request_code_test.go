@@ -499,8 +499,8 @@ func TestRequestCodeRejectsMalformedBodiesAndInvalidPeerIPs(
 				strings.Repeat("9", 101*1024) +
 				`"}`,
 			remoteAddr:  "192.0.2.1:43123",
-			wantStatus:  http.StatusBadRequest,
-			wantMessage: "Invalid request body",
+			wantStatus:  http.StatusRequestEntityTooLarge,
+			wantMessage: "Request body too large",
 		},
 		{
 			name:        "invalid connection IP",

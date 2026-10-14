@@ -30,7 +30,9 @@ func TestProductionMainFailsClosedWithEmptyEnvironment(t *testing.T) {
 	if output, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build entrypoint: %v: %s", err, output)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// Windows may delay starting a newly built executable during concurrent
+	// verification. This remains a failure deadline, not the expected exit time.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, binary)
 	cmd.Env = []string{}

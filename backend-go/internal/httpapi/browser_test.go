@@ -175,14 +175,14 @@ func TestRouterUsesJSONForRoutingErrors(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 		status       int
-	}{{"GET", "/missing", 404}, {"GET", "/auth/request-code", 405}, {"POST", "/health", 405}} {
+	}{{"GET", "/missing", 404}, {"GET", "/auth/request-code", 404}, {"POST", "/health", 404}} {
 		w := httptest.NewRecorder()
 		NewRouter().ServeHTTP(w, httptest.NewRequest(tc.method, tc.path, nil))
 		if w.Code != tc.status || w.Header().Get("Content-Type") != "application/json" || !json.Valid(w.Body.Bytes()) {
 			t.Fatalf("routing error must be JSON: %d %s", w.Code, w.Body.String())
 		}
-		if tc.status == 405 && w.Header().Get("Allow") == "" {
-			t.Fatal("405 must advertise allowed methods")
+		if w.Header().Get("Allow") != "" {
+			t.Fatal("404 must not advertise methods")
 		}
 	}
 }

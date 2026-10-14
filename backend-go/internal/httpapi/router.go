@@ -60,16 +60,21 @@ func NewRouterWithDependencies(
 		},
 	)
 
-	// net/http's default routing errors are plain text; keep the API's JSON
-	// boundary for unknown paths and known paths with the wrong method.
+	// Express answers unmatched methods with 404, and automatically advertises
+	// existing route methods for OPTIONS even when CORS withholds browser grants.
 	for path, methods := range map[string]string{
 		"/health":            "GET, HEAD",
 		"/auth/request-code": "POST",
 		"/auth/verify-code":  "POST",
 	} {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Allow", methods)
-			writeSecurityError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Allow", methods)
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				_, _ = w.Write([]byte(methods))
+				return
+			}
+			writeSecurityError(w, http.StatusNotFound, "Not found")
 		})
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

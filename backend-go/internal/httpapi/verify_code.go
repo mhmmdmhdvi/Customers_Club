@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
@@ -51,41 +50,11 @@ func handleVerifyCode(
 		return
 	}
 
-	r.Body = http.MaxBytesReader(
-		w,
-		r.Body,
-		100*1024,
-	)
-
-	var body struct {
-		Phone any `json:"phone"`
-		Code  any `json:"code"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-
-	if err := decoder.Decode(&body); err != nil {
-		writeOTPMessage(
-			w,
-			http.StatusBadRequest,
-			"Invalid request body",
-		)
+	body, valid := readAuthJSON(w, r)
+	if !valid {
 		return
 	}
-
-	// Reject multiple JSON values.
-	var extra any
-
-	if err := decoder.Decode(&extra); err != io.EOF {
-		writeOTPMessage(
-			w,
-			http.StatusBadRequest,
-			"Invalid request body",
-		)
-		return
-	}
-
-	if missingAuthValue(body.Phone) {
+	if missingAuthValue(body["phone"]) {
 		writeOTPMessage(
 			w,
 			http.StatusBadRequest,
@@ -94,7 +63,7 @@ func handleVerifyCode(
 		return
 	}
 
-	rawPhone, ok := body.Phone.(string)
+	rawPhone, ok := body["phone"].(string)
 
 	if !ok {
 		writeOTPMessage(
@@ -116,7 +85,7 @@ func handleVerifyCode(
 		return
 	}
 
-	if missingAuthValue(body.Code) {
+	if missingAuthValue(body["code"]) {
 		writeOTPMessage(
 			w,
 			http.StatusBadRequest,
@@ -125,7 +94,7 @@ func handleVerifyCode(
 		return
 	}
 
-	rawCode, ok := body.Code.(string)
+	rawCode, ok := body["code"].(string)
 
 	if !ok {
 		writeOTPMessage(
@@ -136,7 +105,7 @@ func handleVerifyCode(
 		return
 	}
 
-	code := strings.TrimSpace(rawCode)
+	code := jsstring.Trim(rawCode)
 
 	if !httpSixDigitPattern.MatchString(code) {
 		writeOTPMessage(

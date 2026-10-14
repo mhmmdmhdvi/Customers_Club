@@ -20,18 +20,17 @@ const {
     "./admin-mfa.service.factory",
 );
 
-const config =
-    readAdminMfaConfig();
+// Validate MFA credentials only when an administrator uses MFA. Importing the
+// app and MEMBER sessions must not depend on an administrator encryption key.
+function service() {
+    const config = readAdminMfaConfig();
+    return createAdminMfaService(prisma, {
+        mfaCrypto: createAdminMfaCrypto(config.encryptionKey),
+    });
+}
 
-const mfaCrypto =
-    createAdminMfaCrypto(
-        config.encryptionKey,
-    );
-
-module.exports =
-    createAdminMfaService(
-        prisma,
-        {
-            mfaCrypto,
-        },
-    );
+module.exports = {
+    enroll: (...args) => service().enroll(...args),
+    begin: (...args) => service().begin(...args),
+    complete: (...args) => service().complete(...args),
+};
