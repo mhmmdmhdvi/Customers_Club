@@ -128,6 +128,8 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	workload := paths
 	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "trigram" {
 		workload = paths[3:4]
+	} else if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "overview" {
+		workload = paths[4:5]
 	}
 	for _, path := range workload {
 		result := measure(t, server.URL, path, token.AccessToken, p)
@@ -152,6 +154,14 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 			t.Logf("%s search p50=%.2f p95=%.2f p99=%.2f rps=%.2f", implementation, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
 		}
 	}
+	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "overview" {
+		candidate := httptest.NewServer(httpapi.WithBrowserPolicy(httpapi.NewRouterWithDependencies(httpapi.RouterDependencies{Session: service, Auth: auth, Admin: overviewCandidate{admin.New(p), p}}), auth))
+		defer candidate.Close()
+		result := measure(t, candidate.URL, paths[4], token.AccessToken, p)
+		data.Results["candidateGo"] = []endpoint{result}
+		data.Candidate = map[string]any{"kind": "overview-single-pass"}
+		t.Logf("candidateGo overview p50=%.2f p95=%.2f p99=%.2f rps=%.2f", result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
+	}
 	raw, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		t.Fatal(err)
@@ -159,6 +169,23 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	if err = os.WriteFile(output, append(raw, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// An experimental service remains test-only until HTTP measurements justify
+// changing the actual service. It preserves the endpoint and exact predicates.
+type overviewCandidate struct {
+	*admin.Service
+	pool *pgxpool.Pool
+}
+
+func (s overviewCandidate) Overview(ctx context.Context) (map[string]any, error) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	var members, recent, messages, newMessages, active int64
+	err := s.pool.QueryRow(ctx, `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">$2) FROM (SELECT count(*) FILTER (WHERE role='MEMBER') total,count(*) FILTER (WHERE role='MEMBER' AND "createdAt">=$1) recent FROM "User") members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`, now.Add(-7*24*time.Hour), now).Scan(&members, &recent, &messages, &newMessages, &active)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"members": map[string]any{"total": members, "newLast7Days": recent}, "messages": map[string]any{"total": messages, "new": newMessages}, "sessions": map[string]any{"active": active}}, nil
 }
 
 func seed(t *testing.T, ctx context.Context, p *pgxpool.Pool) {
