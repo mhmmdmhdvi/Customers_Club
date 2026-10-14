@@ -5,7 +5,8 @@ param(
   [Parameter(Mandatory=$true)][string]$Output,
   [switch]$AllowPerformance,
   [switch]$TrigramCandidate,
-  [switch]$OverviewCandidate
+  [switch]$OverviewCandidate,
+  [switch]$FlushGinPending
 )
 $ErrorActionPreference = 'Stop'
 if (-not $AllowPerformance) { throw 'Explicit -AllowPerformance required.' }
@@ -18,11 +19,12 @@ $env:ALLOW_MIGRATION_PERFORMANCE = '1'
 $env:MIGRATION_PERFORMANCE_OUTPUT = $destination
 if ($TrigramCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'trigram' }
 elseif ($OverviewCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'overview' }
+if ($FlushGinPending) { $env:MIGRATION_PERFORMANCE_FLUSH_GIN = '1' }
 Push-Location (Join-Path $repo 'backend-go')
 try {
   go test ./internal/perftest -run '^TestHTTPDatabasePerformance$' -count=1 -timeout=15m -v
   if ($LASTEXITCODE -ne 0) { throw 'Owned HTTP benchmark failed.' }
 } finally {
   Pop-Location
-  Remove-Item Env:ALLOW_MIGRATION_PERFORMANCE, Env:MIGRATION_PERFORMANCE_OUTPUT, Env:MIGRATION_PERFORMANCE_CANDIDATE -ErrorAction SilentlyContinue
+  Remove-Item Env:ALLOW_MIGRATION_PERFORMANCE, Env:MIGRATION_PERFORMANCE_OUTPUT, Env:MIGRATION_PERFORMANCE_CANDIDATE, Env:MIGRATION_PERFORMANCE_FLUSH_GIN -ErrorAction SilentlyContinue
 }

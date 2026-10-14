@@ -53,22 +53,23 @@ type endpoint struct {
 	Pool *poolDelta `json:"pool,omitempty"`
 }
 type evidence struct {
-	Revision    string                `json:"revision"`
-	Started     string                `json:"startedUtc"`
-	Go          string                `json:"go"`
-	Node        string                `json:"node"`
-	OS          string                `json:"os"`
-	CPUs        int                   `json:"logicalCpus"`
-	GOMAXPROCS  int                   `json:"gomaxprocs"`
-	PoolMax     int                   `json:"poolMax"`
-	PoolMin     int                   `json:"poolMin"`
-	Warmup      int                   `json:"warmupPerEndpoint"`
-	Concurrency int                   `json:"concurrency"`
-	Seed        map[string]int        `json:"seedRows"`
-	Settings    map[string]string     `json:"postgresSettings"`
-	Plans       map[string][]string   `json:"explainAnalyzeBuffers"`
-	Results     map[string][]endpoint `json:"results"`
-	Candidate   map[string]any        `json:"candidate,omitempty"`
+	Revision        string                `json:"revision"`
+	Started         string                `json:"startedUtc"`
+	Go              string                `json:"go"`
+	Node            string                `json:"node"`
+	OS              string                `json:"os"`
+	CPUs            int                   `json:"logicalCpus"`
+	GOMAXPROCS      int                   `json:"gomaxprocs"`
+	PoolMax         int                   `json:"poolMax"`
+	PoolMin         int                   `json:"poolMin"`
+	Warmup          int                   `json:"warmupPerEndpoint"`
+	Concurrency     int                   `json:"concurrency"`
+	Seed            map[string]int        `json:"seedRows"`
+	Settings        map[string]string     `json:"postgresSettings"`
+	Plans           map[string][]string   `json:"explainAnalyzeBuffers"`
+	Results         map[string][]endpoint `json:"results"`
+	Candidate       map[string]any        `json:"candidate,omitempty"`
+	SeedMaintenance map[string]any        `json:"seedMaintenance"`
 }
 
 // Expensive and destructive only inside testdb's unique marked child. Both
@@ -117,6 +118,20 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	revision, _ := exec.Command("git", "rev-parse", "HEAD").Output()
 	nodeVersion, _ := exec.Command("node", "--version").Output()
 	data := evidence{Revision: strings.TrimSpace(string(revision)), Started: time.Now().UTC().Format(time.RFC3339), Go: runtime.Version(), Node: strings.TrimSpace(string(nodeVersion)), OS: runtime.GOOS + "/" + runtime.GOARCH, CPUs: runtime.NumCPU(), GOMAXPROCS: runtime.GOMAXPROCS(0), PoolMax: poolMax, PoolMin: poolMax, Warmup: warmup, Concurrency: concurrency, Seed: map[string]int{"users": 100000, "sessions": 20000, "messages": 20000, "audit": 20000, "security": 20000}, Settings: map[string]string{}, Plans: map[string][]string{}, Results: map[string][]endpoint{}}
+	data.SeedMaintenance = map[string]any{"ginPendingList": "default-after-bulk-seed"}
+	if os.Getenv("MIGRATION_PERFORMANCE_FLUSH_GIN") == "1" {
+		var present bool
+		if err = p.QueryRow(ctx, `SELECT to_regclass('"User_search_trgm_idx"') IS NOT NULL`).Scan(&present); err != nil {
+			t.Fatal(err)
+		}
+		if present {
+			var pages int64
+			if err = p.QueryRow(ctx, `SELECT gin_clean_pending_list('"User_search_trgm_idx"')`).Scan(&pages); err != nil {
+				t.Fatal("owned GIN cleanup failed", err)
+			}
+			data.SeedMaintenance = map[string]any{"ginPendingList": "explicitly-cleaned-after-bulk-seed", "pagesFlushed": pages}
+		}
+	}
 	for _, setting := range []string{"server_version", "shared_buffers", "work_mem", "max_connections", "effective_cache_size", "random_page_cost", "jit", "track_io_timing", "timezone"} {
 		var value string
 		if err = p.QueryRow(ctx, "SHOW "+setting).Scan(&value); err != nil {

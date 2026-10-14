@@ -1,0 +1,404 @@
+{
+  "revision": "ca8f83f08dfca4b10d05e4c0356ae39119e1e9cb",
+  "startedUtc": "2026-10-14T09:58:13Z",
+  "go": "go1.27.1",
+  "node": "v24.20.0",
+  "os": "windows/amd64",
+  "logicalCpus": 8,
+  "gomaxprocs": 8,
+  "poolMax": 6,
+  "poolMin": 6,
+  "warmupPerEndpoint": 50,
+  "concurrency": 8,
+  "seedRows": {
+    "audit": 20000,
+    "messages": 20000,
+    "security": 20000,
+    "sessions": 20000,
+    "users": 100000
+  },
+  "postgresSettings": {
+    "effective_cache_size": "4GB",
+    "jit": "on",
+    "max_connections": "100",
+    "random_page_cost": "4",
+    "server_version": "18.6",
+    "shared_buffers": "128MB",
+    "timezone": "UTC",
+    "track_io_timing": "off",
+    "work_mem": "4MB"
+  },
+  "explainAnalyzeBuffers": {
+    "audit": [
+      "Limit  (cost=0.29..4.99 rows=20 width=331) (actual time=0.007..0.015 rows=20.00 loops=1)",
+      "  Buffers: shared hit=5",
+      "  -\u003e  Index Scan Backward using \"AdminAuditEvent_action_createdAt_idx\" on \"AdminAuditEvent\"  (cost=0.29..941.06 rows=4000 width=331) (actual time=0.006..0.013 rows=20.00 loops=1)",
+      "        Index Cond: ((action)::text = 'CONTACT_MESSAGE_STATUS_CHANGED'::text)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=5",
+      "Planning:",
+      "  Buffers: shared hit=63",
+      "Planning Time: 2.204 ms",
+      "Execution Time: 0.024 ms"
+    ],
+    "authSession": [
+      "Index Scan using \"AuthSession_pkey\" on \"AuthSession\"  (cost=0.29..8.30 rows=1 width=20) (actual time=0.006..0.007 rows=1.00 loops=1)",
+      "  Index Cond: (id = 'c7af2d35-44f0-94b2-8e7f-a85bd32bd22c'::uuid)",
+      "  Index Searches: 1",
+      "  Buffers: shared hit=3",
+      "Planning:",
+      "  Buffers: shared hit=8",
+      "Planning Time: 0.236 ms",
+      "Execution Time: 0.016 ms"
+    ],
+    "authUser": [
+      "Index Scan using \"User_pkey\" on \"User\"  (cost=0.29..8.31 rows=1 width=63) (actual time=0.008..0.008 rows=1.00 loops=1)",
+      "  Index Cond: (id = 1)",
+      "  Index Searches: 1",
+      "  Buffers: shared hit=3",
+      "Planning Time: 0.049 ms",
+      "Execution Time: 0.016 ms"
+    ],
+    "candidateOverviewSinglePass": [
+      "Nested Loop  (cost=4244.01..4244.04 rows=1 width=40) (actual time=15.716..15.718 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1614",
+      "  InitPlan 1",
+      "    -\u003e  Aggregate  (cost=471.00..471.01 rows=1 width=8) (actual time=1.546..1.546 rows=1.00 loops=1)",
+      "          Buffers: shared hit=191",
+      "          -\u003e  Seq Scan on \"AuthSession\"  (cost=0.00..441.00 rows=12000 width=0) (actual time=0.021..1.169 rows=12000.00 loops=1)",
+      "                Filter: ((\"revokedAt\" IS NULL) AND (\"expiresAt\" \u003e '2026-10-14 09:58:13.949'::timestamp without time zone))",
+      "                Rows Removed by Filter: 8000",
+      "                Buffers: shared hit=191",
+      "  -\u003e  Aggregate  (cost=3137.00..3137.01 rows=1 width=16) (actual time=11.904..11.904 rows=1.00 loops=1)",
+      "        Buffers: shared hit=1137",
+      "        -\u003e  Seq Scan on \"User\"  (cost=0.00..2387.00 rows=100000 width=8) (actual time=0.006..7.144 rows=99999.00 loops=1)",
+      "              Filter: (role = 'MEMBER'::\"Role\")",
+      "              Rows Removed by Filter: 1",
+      "              Buffers: shared hit=1137",
+      "  -\u003e  Aggregate  (cost=636.00..636.01 rows=1 width=16) (actual time=2.259..2.259 rows=1.00 loops=1)",
+      "        Buffers: shared hit=286",
+      "        -\u003e  Seq Scan on \"ContactMessage\"  (cost=0.00..486.00 rows=20000 width=4) (actual time=0.023..0.909 rows=20000.00 loops=1)",
+      "              Buffers: shared hit=286",
+      "Planning Time: 0.144 ms",
+      "Execution Time: 15.742 ms"
+    ],
+    "messages": [
+      "Limit  (cost=0.29..4.43 rows=20 width=564) (actual time=0.011..0.019 rows=20.00 loops=1)",
+      "  Buffers: shared hit=3",
+      "  -\u003e  Index Scan Backward using \"ContactMessage_status_createdAt_idx\" on \"ContactMessage\"  (cost=0.29..1379.62 rows=6666 width=564) (actual time=0.009..0.015 rows=20.00 loops=1)",
+      "        Index Cond: (status = 'NEW'::\"ContactMessageStatus\")",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=3",
+      "Planning:",
+      "  Buffers: shared hit=81",
+      "Planning Time: 2.153 ms",
+      "Execution Time: 0.041 ms"
+    ],
+    "overview": [
+      "Nested Loop  (cost=4244.01..4244.04 rows=1 width=40) (actual time=19.043..19.044 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1614",
+      "  InitPlan 1",
+      "    -\u003e  Aggregate  (cost=471.00..471.01 rows=1 width=8) (actual time=1.712..1.713 rows=1.00 loops=1)",
+      "          Buffers: shared hit=191",
+      "          -\u003e  Seq Scan on \"AuthSession\"  (cost=0.00..441.00 rows=12000 width=0) (actual time=0.021..1.349 rows=12000.00 loops=1)",
+      "                Filter: ((\"revokedAt\" IS NULL) AND (\"expiresAt\" \u003e '2026-10-14 09:58:13.935'::timestamp without time zone))",
+      "                Rows Removed by Filter: 8000",
+      "                Buffers: shared hit=191",
+      "  -\u003e  Aggregate  (cost=3137.00..3137.01 rows=1 width=16) (actual time=15.225..15.225 rows=1.00 loops=1)",
+      "        Buffers: shared hit=1137",
+      "        -\u003e  Seq Scan on \"User\"  (cost=0.00..2387.00 rows=100000 width=8) (actual time=0.006..9.103 rows=99999.00 loops=1)",
+      "              Filter: (role = 'MEMBER'::\"Role\")",
+      "              Rows Removed by Filter: 1",
+      "              Buffers: shared hit=1137",
+      "  -\u003e  Aggregate  (cost=636.00..636.01 rows=1 width=16) (actual time=2.087..2.087 rows=1.00 loops=1)",
+      "        Buffers: shared hit=286",
+      "        -\u003e  Seq Scan on \"ContactMessage\"  (cost=0.00..486.00 rows=20000 width=4) (actual time=0.023..0.955 rows=20000.00 loops=1)",
+      "              Buffers: shared hit=286",
+      "Planning:",
+      "  Buffers: shared hit=6",
+      "Planning Time: 0.174 ms",
+      "Execution Time: 19.072 ms"
+    ],
+    "security": [
+      "Limit  (cost=0.29..4.72 rows=20 width=322) (actual time=0.014..0.021 rows=20.00 loops=1)",
+      "  Buffers: shared hit=4",
+      "  -\u003e  Index Scan Backward using \"SecurityEvent_eventType_createdAt_idx\" on \"SecurityEvent\"  (cost=0.29..886.84 rows=4000 width=322) (actual time=0.013..0.019 rows=20.00 loops=1)",
+      "        Index Cond: ((\"eventType\")::text = 'ADMIN_LOGIN'::text)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=4",
+      "Planning:",
+      "  Buffers: shared hit=71",
+      "Planning Time: 3.483 ms",
+      "Execution Time: 0.040 ms"
+    ],
+    "usersCount": [
+      "Aggregate  (cost=2387.00..2387.01 rows=1 width=8) (actual time=10.431..10.432 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1137",
+      "  -\u003e  Seq Scan on \"User\"  (cost=0.00..2137.00 rows=100000 width=0) (actual time=0.014..6.177 rows=100000.00 loops=1)",
+      "        Buffers: shared hit=1137",
+      "Planning:",
+      "  Buffers: shared hit=7",
+      "Planning Time: 0.117 ms",
+      "Execution Time: 10.479 ms"
+    ],
+    "usersDeep": [
+      "Limit  (cost=868.51..870.25 rows=20 width=63) (actual time=3.133..3.137 rows=20.00 loops=1)",
+      "  Buffers: shared hit=3479",
+      "  -\u003e  Index Scan using \"User_createdAt_id_idx\" on \"User\"  (cost=0.42..8698.74 rows=100000 width=63) (actual time=0.009..2.891 rows=10000.00 loops=1)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=3479",
+      "Planning Time: 0.044 ms",
+      "Execution Time: 3.151 ms"
+    ],
+    "usersFirst": [
+      "Limit  (cost=0.42..2.16 rows=20 width=63) (actual time=0.006..0.014 rows=20.00 loops=1)",
+      "  Buffers: shared hit=10",
+      "  -\u003e  Index Scan using \"User_createdAt_id_idx\" on \"User\"  (cost=0.42..8698.74 rows=100000 width=63) (actual time=0.005..0.012 rows=20.00 loops=1)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=10",
+      "Planning:",
+      "  Buffers: shared hit=67",
+      "Planning Time: 1.892 ms",
+      "Execution Time: 0.022 ms"
+    ],
+    "usersSearch": [
+      "Limit  (cost=0.42..1766.46 rows=20 width=63) (actual time=0.095..0.924 rows=20.00 loops=1)",
+      "  Buffers: shared hit=698",
+      "  -\u003e  Index Scan using \"User_createdAt_id_idx\" on \"User\"  (cost=0.42..9448.74 rows=107 width=63) (actual time=0.094..0.922 rows=20.00 loops=1)",
+      "        Filter: ((phone ~~ '%Needle%'::text) OR (\"firstName\" ~~* '%Needle%'::text) OR (\"lastName\" ~~* '%Needle%'::text))",
+      "        Rows Removed by Filter: 1980",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=698",
+      "Planning:",
+      "  Buffers: shared hit=14",
+      "Planning Time: 0.143 ms",
+      "Execution Time: 0.936 ms"
+    ],
+    "usersSearchCount": [
+      "Aggregate  (cost=2887.27..2887.28 rows=1 width=8) (actual time=34.395..34.396 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1137",
+      "  -\u003e  Seq Scan on \"User\"  (cost=0.00..2887.00 rows=107 width=0) (actual time=0.295..34.378 rows=100.00 loops=1)",
+      "        Filter: ((phone ~~ '%Needle%'::text) OR (\"firstName\" ~~* '%Needle%'::text) OR (\"lastName\" ~~* '%Needle%'::text))",
+      "        Rows Removed by Filter: 99900",
+      "        Buffers: shared hit=1137",
+      "Planning:",
+      "  Buffers: shared hit=3",
+      "Planning Time: 0.066 ms",
+      "Execution Time: 34.411 ms"
+    ]
+  },
+  "results": {
+    "go": [
+      {
+        "path": "/auth/me",
+        "samples": 500,
+        "p50Ms": 0.5575,
+        "p95Ms": 1.4668,
+        "p99Ms": 5.8,
+        "requestsPerSecond": 11353.908128716987,
+        "wallMs": 44.0377,
+        "pool": {
+          "acquires": 1000,
+          "emptyAcquires": 132,
+          "acquireMs": 12.9262,
+          "emptyWaitMs": 12.3815,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users",
+        "samples": 500,
+        "p50Ms": 7.2914,
+        "p95Ms": 10.6422,
+        "p99Ms": 11.7461,
+        "requestsPerSecond": 1050.8981501039864,
+        "wallMs": 475.7835,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1656,
+          "acquireMs": 730.6099,
+          "emptyWaitMs": 730.6099,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users?page=500\u0026pageSize=20",
+        "samples": 500,
+        "p50Ms": 10.1756,
+        "p95Ms": 12.4536,
+        "p99Ms": 13.144,
+        "requestsPerSecond": 783.1338038923317,
+        "wallMs": 638.4605,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1810,
+          "acquireMs": 1133.1564,
+          "emptyWaitMs": 1133.1564,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users?search=Needle",
+        "samples": 500,
+        "p50Ms": 2.8709,
+        "p95Ms": 81.3777,
+        "p99Ms": 87.7141,
+        "requestsPerSecond": 268.3132946232377,
+        "wallMs": 1863.4932,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1375,
+          "acquireMs": 3599.1602,
+          "emptyWaitMs": 3599.057,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/overview",
+        "samples": 500,
+        "p50Ms": 19.2019,
+        "p95Ms": 25.268,
+        "p99Ms": 33.433,
+        "requestsPerSecond": 407.09236315081347,
+        "wallMs": 1228.2225,
+        "pool": {
+          "acquires": 1500,
+          "emptyAcquires": 1420,
+          "acquireMs": 2350.4629,
+          "emptyWaitMs": 2350.4629,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/messages?status=NEW",
+        "samples": 500,
+        "p50Ms": 1.6497,
+        "p95Ms": 3.2074,
+        "p99Ms": 6.9375,
+        "requestsPerSecond": 4193.178034791637,
+        "wallMs": 119.2413,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 957,
+          "acquireMs": 72.2977,
+          "emptyWaitMs": 72.2977,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/audit?action=CONTACT_MESSAGE_STATUS_CHANGED",
+        "samples": 500,
+        "p50Ms": 1.5999,
+        "p95Ms": 3.5007,
+        "p99Ms": 9.461,
+        "requestsPerSecond": 4236.552124419063,
+        "wallMs": 118.0205,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 788,
+          "acquireMs": 61.9086,
+          "emptyWaitMs": 61.9086,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/security?eventType=ADMIN_LOGIN",
+        "samples": 500,
+        "p50Ms": 1.5388,
+        "p95Ms": 2.7905,
+        "p99Ms": 4.6166,
+        "requestsPerSecond": 4780.059884590234,
+        "wallMs": 104.6012,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 743,
+          "acquireMs": 58.9749,
+          "emptyWaitMs": 58.9749,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      }
+    ],
+    "node": [
+      {
+        "path": "/auth/me",
+        "samples": 500,
+        "p50Ms": 8.5968,
+        "p95Ms": 13.2867,
+        "p99Ms": 15.7354,
+        "requestsPerSecond": 893.1992700775564,
+        "wallMs": 559.7855
+      },
+      {
+        "path": "/admin/users",
+        "samples": 500,
+        "p50Ms": 12.3788,
+        "p95Ms": 16.5766,
+        "p99Ms": 21.9509,
+        "requestsPerSecond": 627.4144476481621,
+        "wallMs": 796.9214
+      },
+      {
+        "path": "/admin/users?page=500\u0026pageSize=20",
+        "samples": 500,
+        "p50Ms": 15.1036,
+        "p95Ms": 21.4657,
+        "p99Ms": 50.1917,
+        "requestsPerSecond": 495.1262250041715,
+        "wallMs": 1009.8435
+      },
+      {
+        "path": "/admin/users?search=Needle",
+        "samples": 500,
+        "p50Ms": 12.4867,
+        "p95Ms": 17.5373,
+        "p99Ms": 21.1567,
+        "requestsPerSecond": 625.1595719807482,
+        "wallMs": 799.7958
+      },
+      {
+        "path": "/admin/overview",
+        "samples": 500,
+        "p50Ms": 43.1177,
+        "p95Ms": 52.547,
+        "p99Ms": 60.7936,
+        "requestsPerSecond": 184.05558154624873,
+        "wallMs": 2716.5707
+      },
+      {
+        "path": "/admin/messages?status=NEW",
+        "samples": 500,
+        "p50Ms": 11.1116,
+        "p95Ms": 15.651,
+        "p99Ms": 17.9707,
+        "requestsPerSecond": 703.4743189665118,
+        "wallMs": 710.758
+      },
+      {
+        "path": "/admin/audit?action=CONTACT_MESSAGE_STATUS_CHANGED",
+        "samples": 500,
+        "p50Ms": 11.3591,
+        "p95Ms": 16.5266,
+        "p99Ms": 23.87,
+        "requestsPerSecond": 682.6090464538665,
+        "wallMs": 732.4837
+      },
+      {
+        "path": "/admin/security?eventType=ADMIN_LOGIN",
+        "samples": 500,
+        "p50Ms": 11.4115,
+        "p95Ms": 16.6153,
+        "p99Ms": 27.998,
+        "requestsPerSecond": 654.4667091110143,
+        "wallMs": 763.9808
+      }
+    ]
+  }
+}
