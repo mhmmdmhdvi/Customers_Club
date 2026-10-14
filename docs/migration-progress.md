@@ -2,6 +2,8 @@
 
 The user explicitly requested implementation of the seven-stage sequence. Work remains in the existing feature checkout to preserve IDE context and untracked startup work. The Node backend is the behavior reference; existing databases and real SMS are excluded from test execution.
 
+Scope clarification: the user withdrew responsive/UI verification on 2026-10-14. Preserve the current interface while completing migration and session renewal; UI/UX work is deferred to a later request.
+
 ## Preflight
 
 | Tasks | Shared boundary | Decision |
@@ -19,10 +21,12 @@ Baseline: Go tests passed. Node offline suite: 560 passed, four test files faile
 
 ## Stage status
 
-1. Runtime/browser: pending.
-2. Compatibility/harness: pending.
-3. Registration/sessions/MFA: pending.
+1. Runtime/browser: complete (8bbfcc5 + d7e06f6). Behavioral tests/full Go suite/vet passed; independent review and scoped fix review passed. Node CORS semantics preserved; all server exits drain before pool cleanup.
+2. Compatibility/harness: complete (4ed7500 + 0b7ef1a). Node offline 682 passed, including 107 shared HTTP cases; Go offline/owned-PostgreSQL/vet pass. Real PostgreSQL isolation/cleanup and native nonzero/timeout startup cleanup passed. Fix round 1/5: four P2 findings addressed, zero open; scoped spec/quality review passed.
+3. Registration/sessions/MFA: in progress; source base 0b7ef1a. Port all six session endpoints, atomic credential claims, refresh/logout, live authorization and interoperable admin MFA.
 4. Birthday/renewal: pending.
 5. Contact/admin/audit: pending.
 6. Performance: pending.
 7. Consolidation/CI/deployment: pending.
+
+Frontend baseline: 18 files / 119 tests passed. Node failure cause confirmed: eager MFA configuration at app import; stage 2 will make configuration lazy without fake runtime credentials. Local race detector is unavailable (CGO off and no C compiler); Linux CI will run race checks.
