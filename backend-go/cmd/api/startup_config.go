@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -17,6 +18,7 @@ type startupConfig struct {
 	OTP      otpconfig.Config
 	Auth     authconfig.Config
 	SMS      farazsms.Config
+	MFAKey   []byte
 }
 
 // readStartupConfig validates configuration
@@ -49,6 +51,10 @@ func readStartupConfig(
 	}
 
 	// Read FarazSMS credentials.
+	mfaKey, err := hex.DecodeString(env["ADMIN_MFA_ENCRYPTION_KEY"])
+	if err != nil || len(mfaKey) != 32 {
+		return startupConfig{}, errors.New("Invalid ADMIN MFA configuration")
+	}
 	smsConfig := farazsms.Config{
 		APIKey: strings.TrimSpace(
 			env["FARAZSMS_API_KEY"],
@@ -75,5 +81,6 @@ func readStartupConfig(
 		OTP:      otpConfig,
 		Auth:     authConfig,
 		SMS:      smsConfig,
+		MFAKey:   mfaKey,
 	}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/farazsms"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/httpapi"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/session"
 )
 
 // databaseOpenFunc describes how to open
@@ -82,6 +83,11 @@ func initializeAPI(
 	// Step 3: Adapt the PostgreSQL pool
 	// into our OTP transaction provider.
 	begin := otpdb.BeginFromPool(pool)
+	sessionService, err := session.New(pool, config.Auth, config.MFAKey)
+	if err != nil {
+		pool.Close()
+		return nil, nil, err
+	}
 
 	// Step 4: Build the database-backed
 	// OTP HTTP API.
@@ -89,6 +95,7 @@ func initializeAPI(
 		config.OTP.Secret,
 		begin,
 		sender.SendOTP,
+		httpapi.RouterDependencies{Session: sessionService, Auth: config.Auth},
 	)
 
 	if err != nil {

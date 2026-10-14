@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
@@ -25,6 +26,8 @@ type RequestCodeService interface {
 type RouterDependencies struct {
 	RequestCode RequestCodeService
 	VerifyCode  VerifyCodeService
+	Session     SessionService
+	Auth        authconfig.Config
 }
 
 func handleRequestCode(

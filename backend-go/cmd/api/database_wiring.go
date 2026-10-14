@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/httpapi"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
 )
@@ -14,6 +15,7 @@ func newDatabaseAPIHandler(
 	secret []byte,
 	begin otpdb.BeginTransaction,
 	sendOTP otp.SendOTPFunc,
+	additional ...httpapi.RouterDependencies,
 ) (http.Handler, error) {
 
 	// Connect OTP creation and verification
@@ -34,5 +36,5 @@ func newDatabaseAPIHandler(
 
 	// Reuse the application HTTP wiring
 	// that we already tested.
-	return newAPIHandler(otpService)
+	return newAPIHandler(otpService, additional...)
 }

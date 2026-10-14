@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"net/http"
 	"strings"
 )
@@ -42,6 +43,18 @@ func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
 			methods = "POST"
 			if r.Method == http.MethodPost {
 				handleVerifyCode(w, r, deps.VerifyCode)
+				return
+			}
+		case "/auth/register", "/auth/login", "/auth/login/mfa", "/auth/refresh", "/auth/logout":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				sessionGuard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handleSession(w, r, deps, path) }), func() (authconfig.Config, error) { return deps.Auth, nil }).ServeHTTP(w, r)
+				return
+			}
+		case "/auth/me":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				handleSession(w, r, deps, path)
 				return
 			}
 		}

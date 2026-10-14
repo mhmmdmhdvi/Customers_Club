@@ -17,7 +17,7 @@ func TestReadStartupConfigAcceptsCompleteEnvironment(
 
 		"OTP_HMAC_SECRET": strings.Repeat("a", 64),
 
-		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64),
+		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64), "ADMIN_MFA_ENCRYPTION_KEY": strings.Repeat("c", 64),
 
 		"JWT_ISSUER":           "customer-club-tests",
 		"JWT_AUDIENCE":         "customer-club-web-tests",
@@ -77,6 +77,10 @@ func TestReadStartupConfigRejectsInvalidEnvironment(
 		name   string
 		change func(map[string]string)
 	}{
+		{
+			name:   "missing MFA key",
+			change: func(env map[string]string) { delete(env, "ADMIN_MFA_ENCRYPTION_KEY") },
+		},
 		{
 			name: "missing database URL",
 			change: func(env map[string]string) {
@@ -151,7 +155,7 @@ func TestReadStartupConfigRejectsInvalidEnvironment(
 
 				"OTP_HMAC_SECRET": strings.Repeat("a", 64),
 
-				"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64),
+				"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64), "ADMIN_MFA_ENCRYPTION_KEY": strings.Repeat("c", 64),
 
 				"JWT_ISSUER":           "customer-club-tests",
 				"JWT_AUDIENCE":         "customer-club-web-tests",

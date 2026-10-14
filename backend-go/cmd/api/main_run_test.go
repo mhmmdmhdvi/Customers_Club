@@ -25,7 +25,7 @@ func TestRunAPIDoesNotServeWhenDatabaseFails(
 		"DATABASE_URL": "postgresql://fake:fake@127.0.0.1:1/offline_no_connection",
 
 		"OTP_HMAC_SECRET":     strings.Repeat("a", 64),
-		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64),
+		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64), "ADMIN_MFA_ENCRYPTION_KEY": strings.Repeat("c", 64),
 
 		"JWT_ISSUER":           "customer-club-tests",
 		"JWT_AUDIENCE":         "customer-club-web-tests",
@@ -116,7 +116,7 @@ func TestRunAPIStartsServerAndClosesPool(
 		"DATABASE_URL": "postgresql://fake:fake@127.0.0.1:1/offline_no_connection",
 
 		"OTP_HMAC_SECRET":     strings.Repeat("a", 64),
-		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64),
+		"ACCESS_TOKEN_SECRET": strings.Repeat("b", 64), "ADMIN_MFA_ENCRYPTION_KEY": strings.Repeat("c", 64),
 
 		"JWT_ISSUER":           "customer-club-tests",
 		"JWT_AUDIENCE":         "customer-club-web-tests",

@@ -13,6 +13,7 @@ import (
 // to the HTTP authentication endpoints.
 func newAPIHandler(
 	otpService *otp.Service,
+	additional ...httpapi.RouterDependencies,
 ) (http.Handler, error) {
 	// Build the phone-verification service using
 	// the existing OTP verification dependencies.
@@ -47,11 +48,12 @@ func newAPIHandler(
 		proofService,
 	)
 
-	return httpapi.NewRouterWithDependencies(
-		httpapi.RouterDependencies{
-			RequestCode: otpService,
-			VerifyCode:  verifyAdapter,
-		},
-	), nil
+	deps := httpapi.RouterDependencies{}
+	if len(additional) > 0 {
+		deps = additional[0]
+	}
+	deps.RequestCode = otpService
+	deps.VerifyCode = verifyAdapter
+	return httpapi.NewRouterWithDependencies(deps), nil
 
 }

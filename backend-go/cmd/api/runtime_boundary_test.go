@@ -18,7 +18,7 @@ import (
 func boundaryEnvironment() map[string]string {
 	return map[string]string{
 		"NODE_ENV": "test", "DATABASE_URL": "postgresql://fake:fake@127.0.0.1:1/offline",
-		"OTP_HMAC_SECRET": strings.Repeat("a", 64), "ACCESS_TOKEN_SECRET": strings.Repeat("b", 64),
+		"OTP_HMAC_SECRET": strings.Repeat("a", 64), "ACCESS_TOKEN_SECRET": strings.Repeat("b", 64), "ADMIN_MFA_ENCRYPTION_KEY": strings.Repeat("c", 64),
 		"JWT_ISSUER": "tests", "JWT_AUDIENCE": "tests", "AUTH_ALLOWED_ORIGINS": "http://localhost:5173",
 		"FARAZSMS_API_KEY": "fake", "FARAZSMS_LINE_NUMBER": "fake", "FARAZSMS_PATTERN_CODE": "fake",
 	}
