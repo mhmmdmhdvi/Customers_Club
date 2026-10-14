@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/accesstoken"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/admin"
@@ -67,6 +68,7 @@ type evidence struct {
 	Settings    map[string]string     `json:"postgresSettings"`
 	Plans       map[string][]string   `json:"explainAnalyzeBuffers"`
 	Results     map[string][]endpoint `json:"results"`
+	Candidate   map[string]any        `json:"candidate,omitempty"`
 }
 
 // Expensive and destructive only inside testdb's unique marked child. Both
@@ -123,16 +125,32 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 		data.Settings[setting] = value
 	}
 	capturePlans(t, ctx, p, data.Plans)
-	for _, path := range paths {
+	workload := paths
+	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "trigram" {
+		workload = paths[3:4]
+	}
+	for _, path := range workload {
 		result := measure(t, server.URL, path, token.AccessToken, p)
 		data.Results["go"] = append(data.Results["go"], result)
 		t.Logf("go %s p50=%.2f p95=%.2f p99=%.2f rps=%.2f", path, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
 	}
 	nodeURL := startNode(t, ctx, p)
-	for _, path := range paths {
+	for _, path := range workload {
 		result := measure(t, nodeURL, path, token.AccessToken, nil)
 		data.Results["node"] = append(data.Results["node"], result)
 		t.Logf("node %s p50=%.2f p95=%.2f p99=%.2f rps=%.2f", path, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
+	}
+	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "trigram" {
+		trigramCandidate(t, ctx, p, &data)
+		for implementation, base := range map[string]string{"candidateGo": server.URL, "candidateNode": nodeURL} {
+			var measuredPool *pgxpool.Pool
+			if implementation == "candidateGo" {
+				measuredPool = p
+			}
+			result := measure(t, base, paths[3], token.AccessToken, measuredPool)
+			data.Results[implementation] = []endpoint{result}
+			t.Logf("%s search p50=%.2f p95=%.2f p99=%.2f rps=%.2f", implementation, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
+		}
 	}
 	raw, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
@@ -252,22 +270,84 @@ func capturePlans(t *testing.T, ctx context.Context, p *pgxpool.Pool, out map[st
 		"security":                    `SELECT id,"eventType",outcome,"actorUserId","requestId",route,"statusCode","createdAt" FROM "SecurityEvent" WHERE "eventType"='ADMIN_LOGIN' ORDER BY "createdAt" DESC LIMIT 20`,
 	}
 	for name, sql := range plans {
-		rows, err := p.Query(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+sql)
-		if err != nil {
-			t.Fatal(name, err)
-		}
-		for rows.Next() {
-			var line string
-			if err = rows.Scan(&line); err != nil {
-				rows.Close()
-				t.Fatal(err)
-			}
-			out[name] = append(out[name], line)
-		}
-		rows.Close()
-		if err = rows.Err(); err != nil {
+		// Runtime Overview binds one millisecond UTC timestamp. Use a timestamp
+		// literal so EXPLAIN does not evaluate now()-interval per scanned row.
+		anchor := "'" + time.Now().UTC().Truncate(time.Millisecond).Format("2006-01-02 15:04:05.000") + "'::timestamp"
+		sql = strings.ReplaceAll(sql, "now()", anchor)
+		out[name] = explain(t, ctx, p.Query, "EXPLAIN (ANALYZE, BUFFERS) "+sql)
+	}
+}
+
+func explain(t *testing.T, ctx context.Context, query func(context.Context, string, ...any) (pgx.Rows, error), sql string) []string {
+	t.Helper()
+	rows, err := query(ctx, sql)
+	if err != nil {
+		t.Fatal("owned explain failed", err)
+	}
+	defer rows.Close()
+	lines := []string{}
+	for rows.Next() {
+		var line string
+		if err = rows.Scan(&line); err != nil {
 			t.Fatal(err)
 		}
+		lines = append(lines, line)
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return lines
+}
+
+func trigramCandidate(t *testing.T, ctx context.Context, p *pgxpool.Pool, data *evidence) {
+	t.Helper()
+	var available, superuser bool
+	if err := p.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name='pg_trgm'),(SELECT rolsuper FROM pg_roles WHERE rolname=current_user)`).Scan(&available, &superuser); err != nil {
+		t.Fatal(err)
+	}
+	data.Candidate = map[string]any{"extensionAvailable": available, "installerSuperuser": superuser}
+	if !available || superuser {
+		t.Fatal("trigram trial requires available extension and owned non-superuser")
+	}
+	writeProbe := func(name string) {
+		tx, err := p.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = tx.Rollback(cleanup)
+		}()
+		data.Plans[name] = explain(t, ctx, tx.Query, `EXPLAIN (ANALYZE, BUFFERS, WAL) INSERT INTO "User" (id,phone,"firstName","lastName","createdAt","updatedAt") SELECT 100000+i,'09'||lpad((100000+i)::text,9,'0'),'WriteProbe','Example',now(),now() FROM generate_series(1,1000) i`)
+		if err = tx.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = p.Exec(ctx, `VACUUM (ANALYZE) "User"`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeProbe("userWriteBeforeTrigram")
+	begin := time.Now()
+	if _, err := p.Exec(ctx, `CREATE EXTENSION pg_trgm; CREATE INDEX "User_search_trgm_idx" ON "User" USING GIN (phone gin_trgm_ops,"firstName" gin_trgm_ops,"lastName" gin_trgm_ops)`); err != nil {
+		t.Fatal("owned trigram build failed", err)
+	}
+	data.Candidate["extensionAndIndexBuildMs"] = float64(time.Since(begin)) / float64(time.Millisecond)
+	var ginBytes, btreeBytes int64
+	if err := p.QueryRow(ctx, `SELECT pg_relation_size('"User_search_trgm_idx"'),pg_relation_size('"User_createdAt_id_idx"')`).Scan(&ginBytes, &btreeBytes); err != nil {
+		t.Fatal(err)
+	}
+	data.Candidate["trigramIndexBytes"] = ginBytes
+	data.Candidate["orderingIndexBytes"] = btreeBytes
+	writeProbe("userWriteWithTrigram")
+	after := map[string][]string{}
+	capturePlans(t, ctx, p, after)
+	for _, key := range []string{"usersSearch", "usersSearchCount"} {
+		data.Plans["trigram"+key] = after[key]
+	}
+	var count int64
+	if err := p.QueryRow(ctx, `SELECT count(*) FROM "User"`).Scan(&count); err != nil || count != 100000 {
+		t.Fatal("write probes changed seeded population")
 	}
 }
 
