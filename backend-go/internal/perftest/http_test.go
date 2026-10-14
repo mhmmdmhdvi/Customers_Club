@@ -238,17 +238,18 @@ func measure(t *testing.T, base, path, token string, p *pgxpool.Pool) endpoint {
 func capturePlans(t *testing.T, ctx context.Context, p *pgxpool.Pool, out map[string][]string) {
 	t.Helper()
 	plans := map[string]string{
-		"authSession":      `SELECT "userId","expiresAt","revokedAt" FROM "AuthSession" WHERE id=md5('session-1')::uuid`,
-		"authUser":         `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE id=1`,
-		"usersFirst":       `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC LIMIT 20`,
-		"usersDeep":        `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC LIMIT 20 OFFSET 9980`,
-		"usersCount":       `SELECT count(*) FROM "User"`,
-		"usersSearch":      `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%' ORDER BY "createdAt" DESC LIMIT 20`,
-		"usersSearchCount": `SELECT count(*) FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%'`,
-		"overview":         `SELECT (SELECT count(*) FROM "User" WHERE role='MEMBER'),(SELECT count(*) FROM "User" WHERE role='MEMBER' AND "createdAt">=now()-interval '7 days'),(SELECT count(*) FROM "ContactMessage"),(SELECT count(*) FROM "ContactMessage" WHERE status='NEW'),(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now())`,
-		"messages":         `SELECT id,name,phone,email,subject,status,"createdAt","updatedAt" FROM "ContactMessage" WHERE status='NEW' ORDER BY "createdAt" DESC LIMIT 20`,
-		"audit":            `SELECT id,"actorUserId",action,"targetType","targetId",outcome,"requestId","createdAt" FROM "AdminAuditEvent" WHERE action='CONTACT_MESSAGE_STATUS_CHANGED' ORDER BY "createdAt" DESC LIMIT 20`,
-		"security":         `SELECT id,"eventType",outcome,"actorUserId","requestId",route,"statusCode","createdAt" FROM "SecurityEvent" WHERE "eventType"='ADMIN_LOGIN' ORDER BY "createdAt" DESC LIMIT 20`,
+		"authSession":                 `SELECT "userId","expiresAt","revokedAt" FROM "AuthSession" WHERE id=md5('session-1')::uuid`,
+		"authUser":                    `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE id=1`,
+		"usersFirst":                  `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
+		"usersDeep":                   `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20 OFFSET 9980`,
+		"usersCount":                  `SELECT count(*) FROM "User"`,
+		"usersSearch":                 `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%' ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
+		"usersSearchCount":            `SELECT count(*) FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%'`,
+		"overview":                    `SELECT (SELECT count(*) FROM "User" WHERE role='MEMBER'),(SELECT count(*) FROM "User" WHERE role='MEMBER' AND "createdAt">=now()-interval '7 days'),(SELECT count(*) FROM "ContactMessage"),(SELECT count(*) FROM "ContactMessage" WHERE status='NEW'),(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now())`,
+		"candidateOverviewSinglePass": `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now()) FROM (SELECT count(*) FILTER (WHERE role='MEMBER') total,count(*) FILTER (WHERE role='MEMBER' AND "createdAt">=now()-interval '7 days') recent FROM "User") members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`,
+		"messages":                    `SELECT id,name,phone,email,subject,status,"createdAt","updatedAt" FROM "ContactMessage" WHERE status='NEW' ORDER BY "createdAt" DESC LIMIT 20`,
+		"audit":                       `SELECT id,"actorUserId",action,"targetType","targetId",outcome,"requestId","createdAt" FROM "AdminAuditEvent" WHERE action='CONTACT_MESSAGE_STATUS_CHANGED' ORDER BY "createdAt" DESC LIMIT 20`,
+		"security":                    `SELECT id,"eventType",outcome,"actorUserId","requestId",route,"statusCode","createdAt" FROM "SecurityEvent" WHERE "eventType"='ADMIN_LOGIN' ORDER BY "createdAt" DESC LIMIT 20`,
 	}
 	for name, sql := range plans {
 		rows, err := p.Query(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+sql)

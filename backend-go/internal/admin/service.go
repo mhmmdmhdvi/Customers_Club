@@ -199,7 +199,11 @@ func (s *Service) List(ctx context.Context, kind string, q url.Values) (map[stri
 		return nil, e
 	}
 	args = append(args, size, (page-1)*size)
-	rows, e := s.pool.Query(ctx, `SELECT `+r.columns+` FROM "`+r.table+`"`+where+fmt.Sprintf(` ORDER BY "createdAt" DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
+	order := `"createdAt" DESC`
+	if kind == "users" {
+		order += `,id DESC`
+	}
+	rows, e := s.pool.Query(ctx, `SELECT `+r.columns+` FROM "`+r.table+`"`+where+fmt.Sprintf(` ORDER BY %s LIMIT $%d OFFSET $%d`, order, len(args)-1, len(args)), args...)
 	if e != nil {
 		return nil, e
 	}

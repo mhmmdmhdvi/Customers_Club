@@ -1,0 +1,416 @@
+{
+  "revision": "644ac15e271d85eec29b18bc1dbc89966badede2",
+  "startedUtc": "2026-10-14T09:48:33Z",
+  "go": "go1.27.1",
+  "node": "v24.20.0",
+  "os": "windows/amd64",
+  "logicalCpus": 8,
+  "gomaxprocs": 8,
+  "poolMax": 6,
+  "poolMin": 6,
+  "warmupPerEndpoint": 50,
+  "concurrency": 8,
+  "seedRows": {
+    "audit": 20000,
+    "messages": 20000,
+    "security": 20000,
+    "sessions": 20000,
+    "users": 100000
+  },
+  "postgresSettings": {
+    "effective_cache_size": "4GB",
+    "jit": "on",
+    "max_connections": "100",
+    "random_page_cost": "4",
+    "server_version": "18.6",
+    "shared_buffers": "128MB",
+    "timezone": "UTC",
+    "track_io_timing": "off",
+    "work_mem": "4MB"
+  },
+  "explainAnalyzeBuffers": {
+    "audit": [
+      "Limit  (cost=0.29..4.99 rows=20 width=331) (actual time=0.008..0.016 rows=20.00 loops=1)",
+      "  Buffers: shared hit=5",
+      "  -\u003e  Index Scan Backward using \"AdminAuditEvent_action_createdAt_idx\" on \"AdminAuditEvent\"  (cost=0.29..941.06 rows=4000 width=331) (actual time=0.007..0.013 rows=20.00 loops=1)",
+      "        Index Cond: ((action)::text = 'CONTACT_MESSAGE_STATUS_CHANGED'::text)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=5",
+      "Planning:",
+      "  Buffers: shared hit=63",
+      "Planning Time: 3.354 ms",
+      "Execution Time: 0.029 ms"
+    ],
+    "authSession": [
+      "Index Scan using \"AuthSession_pkey\" on \"AuthSession\"  (cost=0.29..8.30 rows=1 width=20) (actual time=0.005..0.005 rows=1.00 loops=1)",
+      "  Index Cond: (id = 'c7af2d35-44f0-94b2-8e7f-a85bd32bd22c'::uuid)",
+      "  Index Searches: 1",
+      "  Buffers: shared hit=3",
+      "Planning:",
+      "  Buffers: shared hit=14",
+      "Planning Time: 0.109 ms",
+      "Execution Time: 0.013 ms"
+    ],
+    "authUser": [
+      "Index Scan using \"User_pkey\" on \"User\"  (cost=0.29..8.31 rows=1 width=63) (actual time=0.006..0.006 rows=1.00 loops=1)",
+      "  Index Cond: (id = 1)",
+      "  Index Searches: 1",
+      "  Buffers: shared hit=3",
+      "Planning:",
+      "  Buffers: shared hit=49",
+      "Planning Time: 1.573 ms",
+      "Execution Time: 0.017 ms"
+    ],
+    "messages": [
+      "Limit  (cost=0.29..4.43 rows=20 width=564) (actual time=0.006..0.010 rows=20.00 loops=1)",
+      "  Buffers: shared hit=3",
+      "  -\u003e  Index Scan Backward using \"ContactMessage_status_createdAt_idx\" on \"ContactMessage\"  (cost=0.29..1379.62 rows=6666 width=564) (actual time=0.006..0.008 rows=20.00 loops=1)",
+      "        Index Cond: (status = 'NEW'::\"ContactMessageStatus\")",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=3",
+      "Planning:",
+      "  Buffers: shared hit=17",
+      "Planning Time: 0.119 ms",
+      "Execution Time: 0.020 ms"
+    ],
+    "overview": [
+      "Result  (cost=7441.22..7441.23 rows=1 width=40) (actual time=38.416..38.420 rows=1.00 loops=1)",
+      "  Buffers: shared hit=3037",
+      "  InitPlan 1",
+      "    -\u003e  Aggregate  (cost=2637.00..2637.01 rows=1 width=8) (actual time=14.335..14.335 rows=1.00 loops=1)",
+      "          Buffers: shared hit=1137",
+      "          -\u003e  Seq Scan on \"User\"  (cost=0.00..2387.00 rows=100000 width=0) (actual time=0.009..9.804 rows=99999.00 loops=1)",
+      "                Filter: (role = 'MEMBER'::\"Role\")",
+      "                Rows Removed by Filter: 1",
+      "                Buffers: shared hit=1137",
+      "  InitPlan 2",
+      "    -\u003e  Aggregate  (cost=3194.50..3194.51 rows=1 width=8) (actual time=18.688..18.688 rows=1.00 loops=1)",
+      "          Buffers: shared hit=1137",
+      "          -\u003e  Seq Scan on \"User\" \"User_1\"  (cost=0.00..3137.00 rows=23001 width=0) (actual time=0.027..17.815 rows=23336.00 loops=1)",
+      "                Filter: ((role = 'MEMBER'::\"Role\") AND (\"createdAt\" \u003e= (now() - '7 days'::interval)))",
+      "                Rows Removed by Filter: 76664",
+      "                Buffers: shared hit=1137",
+      "  InitPlan 3",
+      "    -\u003e  Aggregate  (cost=536.00..536.01 rows=1 width=8) (actual time=1.635..1.636 rows=1.00 loops=1)",
+      "          Buffers: shared hit=286",
+      "          -\u003e  Seq Scan on \"ContactMessage\"  (cost=0.00..486.00 rows=20000 width=0) (actual time=0.034..1.006 rows=20000.00 loops=1)",
+      "                Buffers: shared hit=286",
+      "  InitPlan 4",
+      "    -\u003e  Aggregate  (cost=552.66..552.67 rows=1 width=8) (actual time=1.312..1.312 rows=1.00 loops=1)",
+      "          Buffers: shared hit=286",
+      "          -\u003e  Seq Scan on \"ContactMessage\" \"ContactMessage_1\"  (cost=0.00..536.00 rows=6666 width=0) (actual time=0.012..1.101 rows=6666.00 loops=1)",
+      "                Filter: (status = 'NEW'::\"ContactMessageStatus\")",
+      "                Rows Removed by Filter: 13334",
+      "                Buffers: shared hit=286",
+      "  InitPlan 5",
+      "    -\u003e  Aggregate  (cost=521.00..521.01 rows=1 width=8) (actual time=2.431..2.431 rows=1.00 loops=1)",
+      "          Buffers: shared hit=191",
+      "          -\u003e  Seq Scan on \"AuthSession\"  (cost=0.00..491.00 rows=12000 width=0) (actual time=0.012..1.978 rows=12000.00 loops=1)",
+      "                Filter: ((\"revokedAt\" IS NULL) AND (\"expiresAt\" \u003e now()))",
+      "                Rows Removed by Filter: 8000",
+      "                Buffers: shared hit=191",
+      "Planning:",
+      "  Buffers: shared hit=43",
+      "Planning Time: 2.686 ms",
+      "Execution Time: 38.460 ms"
+    ],
+    "security": [
+      "Limit  (cost=0.29..4.72 rows=20 width=322) (actual time=0.010..0.015 rows=20.00 loops=1)",
+      "  Buffers: shared hit=4",
+      "  -\u003e  Index Scan Backward using \"SecurityEvent_eventType_createdAt_idx\" on \"SecurityEvent\"  (cost=0.29..886.84 rows=4000 width=322) (actual time=0.009..0.013 rows=20.00 loops=1)",
+      "        Index Cond: ((\"eventType\")::text = 'ADMIN_LOGIN'::text)",
+      "        Index Searches: 1",
+      "        Buffers: shared hit=4",
+      "Planning:",
+      "  Buffers: shared hit=71",
+      "Planning Time: 2.857 ms",
+      "Execution Time: 0.025 ms"
+    ],
+    "usersCount": [
+      "Aggregate  (cost=2387.00..2387.01 rows=1 width=8) (actual time=9.783..9.783 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1137",
+      "  -\u003e  Seq Scan on \"User\"  (cost=0.00..2137.00 rows=100000 width=0) (actual time=0.010..5.444 rows=100000.00 loops=1)",
+      "        Buffers: shared hit=1137",
+      "Planning:",
+      "  Buffers: shared hit=6",
+      "Planning Time: 0.111 ms",
+      "Execution Time: 9.827 ms"
+    ],
+    "usersDeep": [
+      "Limit  (cost=8064.97..8067.25 rows=20 width=63) (actual time=125.725..127.488 rows=20.00 loops=1)",
+      "  Buffers: shared hit=1174",
+      "  -\u003e  Gather Merge  (cost=6927.55..18324.72 rows=100001 width=63) (actual time=123.847..127.264 rows=10000.00 loops=1)",
+      "        Workers Planned: 1",
+      "        Workers Launched: 1",
+      "        Buffers: shared hit=1174",
+      "        -\u003e  Sort  (cost=5927.54..6074.60 rows=58824 width=63) (actual time=18.318..18.909 rows=5000.00 loops=2)",
+      "              Sort Key: \"createdAt\" DESC",
+      "              Sort Method: top-N heapsort  Memory: 2841kB",
+      "              Buffers: shared hit=1174",
+      "              Worker 0:  Sort Method: quicksort  Memory: 25kB",
+      "              -\u003e  Parallel Seq Scan on \"User\"  (cost=0.00..1725.24 rows=58824 width=63) (actual time=0.003..6.072 rows=50000.00 loops=2)",
+      "                    Buffers: shared hit=1137",
+      "Planning Time: 0.048 ms",
+      "Execution Time: 128.000 ms"
+    ],
+    "usersFirst": [
+      "Limit  (cost=4290.53..4292.81 rows=20 width=63) (actual time=139.434..144.493 rows=20.00 loops=1)",
+      "  Buffers: shared hit=1174",
+      "  -\u003e  Gather Merge  (cost=4290.53..15687.70 rows=100001 width=63) (actual time=139.433..144.489 rows=20.00 loops=1)",
+      "        Workers Planned: 1",
+      "        Workers Launched: 1",
+      "        Buffers: shared hit=1174",
+      "        -\u003e  Sort  (cost=3290.52..3437.58 rows=58824 width=63) (actual time=16.919..16.921 rows=10.00 loops=2)",
+      "              Sort Key: \"createdAt\" DESC",
+      "              Sort Method: top-N heapsort  Memory: 28kB",
+      "              Buffers: shared hit=1174",
+      "              Worker 0:  Sort Method: quicksort  Memory: 25kB",
+      "              -\u003e  Parallel Seq Scan on \"User\"  (cost=0.00..1725.24 rows=58824 width=63) (actual time=0.005..7.699 rows=50000.00 loops=2)",
+      "                    Buffers: shared hit=1137",
+      "Planning:",
+      "  Buffers: shared hit=26",
+      "Planning Time: 0.084 ms",
+      "Execution Time: 144.518 ms"
+    ],
+    "usersSearch": [
+      "Limit  (cost=2890.54..2890.59 rows=20 width=63) (actual time=34.432..34.435 rows=20.00 loops=1)",
+      "  Buffers: shared hit=1137",
+      "  -\u003e  Sort  (cost=2890.54..2890.87 rows=133 width=63) (actual time=34.430..34.432 rows=20.00 loops=1)",
+      "        Sort Key: \"createdAt\" DESC",
+      "        Sort Method: top-N heapsort  Memory: 28kB",
+      "        Buffers: shared hit=1137",
+      "        -\u003e  Seq Scan on \"User\"  (cost=0.00..2887.00 rows=133 width=63) (actual time=0.422..34.377 rows=100.00 loops=1)",
+      "              Filter: ((phone ~~ '%Needle%'::text) OR (\"firstName\" ~~* '%Needle%'::text) OR (\"lastName\" ~~* '%Needle%'::text))",
+      "              Rows Removed by Filter: 99900",
+      "              Buffers: shared hit=1137",
+      "Planning:",
+      "  Buffers: shared hit=2",
+      "Planning Time: 0.154 ms",
+      "Execution Time: 34.462 ms"
+    ],
+    "usersSearchCount": [
+      "Aggregate  (cost=2887.33..2887.34 rows=1 width=8) (actual time=39.592..39.593 rows=1.00 loops=1)",
+      "  Buffers: shared hit=1137",
+      "  -\u003e  Seq Scan on \"User\"  (cost=0.00..2887.00 rows=133 width=0) (actual time=0.383..39.573 rows=100.00 loops=1)",
+      "        Filter: ((phone ~~ '%Needle%'::text) OR (\"firstName\" ~~* '%Needle%'::text) OR (\"lastName\" ~~* '%Needle%'::text))",
+      "        Rows Removed by Filter: 99900",
+      "        Buffers: shared hit=1137",
+      "Planning Time: 0.072 ms",
+      "Execution Time: 39.614 ms"
+    ]
+  },
+  "results": {
+    "go": [
+      {
+        "path": "/auth/me",
+        "samples": 500,
+        "p50Ms": 0.5652,
+        "p95Ms": 1.7424,
+        "p99Ms": 4.9757,
+        "requestsPerSecond": 9252.525476828901,
+        "wallMs": 54.0393,
+        "pool": {
+          "acquires": 1000,
+          "emptyAcquires": 209,
+          "acquireMs": 22.4849,
+          "emptyWaitMs": 20.942,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users",
+        "samples": 500,
+        "p50Ms": 94.7781,
+        "p95Ms": 176.4108,
+        "p99Ms": 211.2269,
+        "requestsPerSecond": 78.9020657618104,
+        "wallMs": 6336.9697,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1884,
+          "acquireMs": 11727.182,
+          "emptyWaitMs": 11727.182,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users?page=500\u0026pageSize=20",
+        "samples": 500,
+        "p50Ms": 110.7422,
+        "p95Ms": 181.8995,
+        "p99Ms": 216.8919,
+        "requestsPerSecond": 68.13156341157902,
+        "wallMs": 7338.7425,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1959,
+          "acquireMs": 13794.5123,
+          "emptyWaitMs": 13794.5123,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/users?search=Needle",
+        "samples": 500,
+        "p50Ms": 115.0187,
+        "p95Ms": 133.0305,
+        "p99Ms": 137.6566,
+        "requestsPerSecond": 69.21057422407749,
+        "wallMs": 7224.3296,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1963,
+          "acquireMs": 14183.9692,
+          "emptyWaitMs": 14183.9692,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/overview",
+        "samples": 500,
+        "p50Ms": 28.0504,
+        "p95Ms": 39.7417,
+        "p99Ms": 44.1475,
+        "requestsPerSecond": 274.1971890181613,
+        "wallMs": 1823.5052,
+        "pool": {
+          "acquires": 1500,
+          "emptyAcquires": 1415,
+          "acquireMs": 3567.588,
+          "emptyWaitMs": 3567.588,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/messages?status=NEW",
+        "samples": 500,
+        "p50Ms": 3.1448,
+        "p95Ms": 4.3742,
+        "p99Ms": 5.4375,
+        "requestsPerSecond": 2474.1843603837556,
+        "wallMs": 202.0868,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 1539,
+          "acquireMs": 257.5735,
+          "emptyWaitMs": 257.5735,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/audit?action=CONTACT_MESSAGE_STATUS_CHANGED",
+        "samples": 500,
+        "p50Ms": 1.7832,
+        "p95Ms": 3.0549,
+        "p99Ms": 5.8287,
+        "requestsPerSecond": 3909.582308045373,
+        "wallMs": 127.8909,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 959,
+          "acquireMs": 95.0569,
+          "emptyWaitMs": 94.5407,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      },
+      {
+        "path": "/admin/security?eventType=ADMIN_LOGIN",
+        "samples": 500,
+        "p50Ms": 1.6952,
+        "p95Ms": 6.4922,
+        "p99Ms": 22.9867,
+        "requestsPerSecond": 3061.506273332505,
+        "wallMs": 163.3183,
+        "pool": {
+          "acquires": 2000,
+          "emptyAcquires": 946,
+          "acquireMs": 99.4779,
+          "emptyWaitMs": 99.4779,
+          "maxConnections": 6,
+          "totalConnections": 6
+        }
+      }
+    ],
+    "node": [
+      {
+        "path": "/auth/me",
+        "samples": 500,
+        "p50Ms": 8.9054,
+        "p95Ms": 14.6525,
+        "p99Ms": 17.0279,
+        "requestsPerSecond": 851.0260225035108,
+        "wallMs": 587.5261
+      },
+      {
+        "path": "/admin/users",
+        "samples": 500,
+        "p50Ms": 112.8962,
+        "p95Ms": 164.7723,
+        "p99Ms": 215.8091,
+        "requestsPerSecond": 66.95149259916862,
+        "wallMs": 7468.0934
+      },
+      {
+        "path": "/admin/users?page=500\u0026pageSize=20",
+        "samples": 500,
+        "p50Ms": 135.2485,
+        "p95Ms": 207.8558,
+        "p99Ms": 248.1753,
+        "requestsPerSecond": 56.22293175062332,
+        "wallMs": 8893.1684
+      },
+      {
+        "path": "/admin/users?search=Needle",
+        "samples": 500,
+        "p50Ms": 116.4361,
+        "p95Ms": 130.7419,
+        "p99Ms": 158.2737,
+        "requestsPerSecond": 68.36154441088591,
+        "wallMs": 7314.0536
+      },
+      {
+        "path": "/admin/overview",
+        "samples": 500,
+        "p50Ms": 47.6475,
+        "p95Ms": 58.4184,
+        "p99Ms": 72.7677,
+        "requestsPerSecond": 166.07325923255223,
+        "wallMs": 3010.7195
+      },
+      {
+        "path": "/admin/messages?status=NEW",
+        "samples": 500,
+        "p50Ms": 11.5029,
+        "p95Ms": 16.1389,
+        "p99Ms": 18.8004,
+        "requestsPerSecond": 677.4088353350538,
+        "wallMs": 738.1067
+      },
+      {
+        "path": "/admin/audit?action=CONTACT_MESSAGE_STATUS_CHANGED",
+        "samples": 500,
+        "p50Ms": 11.4299,
+        "p95Ms": 17.6496,
+        "p99Ms": 21.4941,
+        "requestsPerSecond": 674.896899375167,
+        "wallMs": 740.8539
+      },
+      {
+        "path": "/admin/security?eventType=ADMIN_LOGIN",
+        "samples": 500,
+        "p50Ms": 10.5989,
+        "p95Ms": 14.9526,
+        "p99Ms": 18.1737,
+        "requestsPerSecond": 743.0758704242131,
+        "wallMs": 672.8788
+      }
+    ]
+  }
+}

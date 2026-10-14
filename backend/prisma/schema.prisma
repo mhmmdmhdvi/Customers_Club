@@ -24,6 +24,8 @@ model User {
   updatedAt          DateTime            @updatedAt
   adminMfaCredential AdminMfaCredential?
   adminMfaChallenges AdminMfaChallenge[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 enum Role {
