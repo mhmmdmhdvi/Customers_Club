@@ -8,7 +8,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/admin"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/contact"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/database"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/events"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/farazsms"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/httpapi"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
@@ -95,7 +98,7 @@ func initializeAPI(
 		config.OTP.Secret,
 		begin,
 		sender.SendOTP,
-		httpapi.RouterDependencies{Session: sessionService, Auth: config.Auth},
+		httpapi.RouterDependencies{Session: sessionService, Auth: config.Auth, Contact: contact.New(pool), Admin: admin.New(pool), Events: events.New(pool)},
 	)
 
 	if err != nil {

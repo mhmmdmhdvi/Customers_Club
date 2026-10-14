@@ -1,0 +1,1593 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "public contact",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 201,
+      "json": {
+        "message": "Contact message received"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "public contact case trailing slash",
+      "method": "POST",
+      "path": "/CONTACT/MESSAGES/",
+      "status": 201,
+      "json": {
+        "message": "Contact message received"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact empty optional email",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 201,
+      "json": {
+        "message": "Contact message received"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact emoji codepoint boundary",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 201,
+      "json": {
+        "message": "Contact message received"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      }
+    },
+    {
+      "name": "contact array",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Contact message details are required"
+      },
+      "body": []
+    },
+    {
+      "name": "contact unknown",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Unexpected contact message field"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease ",
+        "actorUserId": 1
+      }
+    },
+    {
+      "name": "contact missing name",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Name is required"
+      },
+      "body": {}
+    },
+    {
+      "name": "contact null name",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Name is required"
+      },
+      "body": {
+        "name": null,
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact control name",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Name must not contain control characters"
+      },
+      "body": {
+        "name": "\nName",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact long name",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Name must contain 1 to 80 characters"
+      },
+      "body": {
+        "name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact empty name",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Name must contain 1 to 80 characters"
+      },
+      "body": {
+        "name": " ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact phone type",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid phone number"
+      },
+      "body": {
+        "name": " é ",
+        "phone": 123,
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact phone invalid",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid phone number"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "0912",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact subject case",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid subject"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "support",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact missing message",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Message is required"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": null
+      }
+    },
+    {
+      "name": "contact nul message",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Message contains invalid characters"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": "a\u0000b"
+      }
+    },
+    {
+      "name": "contact long message",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Message must contain 1 to 250 characters"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      }
+    },
+    {
+      "name": "contact email type",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid email"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": 2,
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact email format",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid email"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "user@example",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact email unicode space",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid email"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "user@ example.com",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      }
+    },
+    {
+      "name": "contact quota",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 429,
+      "json": {
+        "message": "Too many contact messages"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      },
+      "scenario": "quota"
+    },
+    {
+      "name": "contact dependency failure",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 500,
+      "json": {
+        "message": "Internal server error"
+      },
+      "body": {
+        "name": " é ",
+        "phone": "+98 912-1234567",
+        "email": "TEST@EXAMPLE.COM",
+        "subject": "SUPPORT",
+        "message": " Help\nplease "
+      },
+      "scenario": "unexpected"
+    },
+    {
+      "name": "contact last duplicate json wins",
+      "method": "POST",
+      "path": "/contact/messages",
+      "status": 400,
+      "json": {
+        "message": "Invalid subject"
+      },
+      "raw": "{\"name\":\" é \",\"phone\":\"+98 912-1234567\",\"email\":\"TEST@EXAMPLE.COM\",\"subject\":\"SUPPORT\",\"subject\":\"bad\",\"message\":\" Help\\nplease \"}"
+    },
+    {
+      "name": "anonymous GET /admin",
+      "method": "GET",
+      "path": "/admin",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member GET /admin",
+      "method": "GET",
+      "path": "/admin",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous POST /admin",
+      "method": "POST",
+      "path": "/admin",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member POST /admin",
+      "method": "POST",
+      "path": "/admin",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous OPTIONS /admin",
+      "method": "OPTIONS",
+      "path": "/admin",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member OPTIONS /admin",
+      "method": "OPTIONS",
+      "path": "/admin",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous GET /admin/unknown",
+      "method": "GET",
+      "path": "/admin/unknown",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member GET /admin/unknown",
+      "method": "GET",
+      "path": "/admin/unknown",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous POST /admin/unknown",
+      "method": "POST",
+      "path": "/admin/unknown",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member POST /admin/unknown",
+      "method": "POST",
+      "path": "/admin/unknown",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous OPTIONS /admin/unknown",
+      "method": "OPTIONS",
+      "path": "/admin/unknown",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member OPTIONS /admin/unknown",
+      "method": "OPTIONS",
+      "path": "/admin/unknown",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous GET /ADMIN/users/",
+      "method": "GET",
+      "path": "/ADMIN/users/",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member GET /ADMIN/users/",
+      "method": "GET",
+      "path": "/ADMIN/users/",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous POST /ADMIN/users/",
+      "method": "POST",
+      "path": "/ADMIN/users/",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member POST /ADMIN/users/",
+      "method": "POST",
+      "path": "/ADMIN/users/",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous OPTIONS /ADMIN/users/",
+      "method": "OPTIONS",
+      "path": "/ADMIN/users/",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member OPTIONS /ADMIN/users/",
+      "method": "OPTIONS",
+      "path": "/ADMIN/users/",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous GET /admin/messages/1/status",
+      "method": "GET",
+      "path": "/admin/messages/1/status",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member GET /admin/messages/1/status",
+      "method": "GET",
+      "path": "/admin/messages/1/status",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous POST /admin/messages/1/status",
+      "method": "POST",
+      "path": "/admin/messages/1/status",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member POST /admin/messages/1/status",
+      "method": "POST",
+      "path": "/admin/messages/1/status",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "anonymous OPTIONS /admin/messages/1/status",
+      "method": "OPTIONS",
+      "path": "/admin/messages/1/status",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "role": "anonymous"
+    },
+    {
+      "name": "member OPTIONS /admin/messages/1/status",
+      "method": "OPTIONS",
+      "path": "/admin/messages/1/status",
+      "status": 403,
+      "json": {
+        "message": "Forbidden"
+      },
+      "role": "MEMBER"
+    },
+    {
+      "name": "admin unsupported POST /admin/unknown",
+      "method": "POST",
+      "path": "/admin/unknown",
+      "status": 404,
+      "runtime": {
+        "node": {
+          "bodyContains": "Cannot POST"
+        },
+        "go": {
+          "json": {
+            "message": "Not found"
+          }
+        }
+      }
+    },
+    {
+      "name": "admin unsupported POST /admin",
+      "method": "POST",
+      "path": "/admin",
+      "status": 404,
+      "runtime": {
+        "node": {
+          "bodyContains": "Cannot POST"
+        },
+        "go": {
+          "json": {
+            "message": "Not found"
+          }
+        }
+      }
+    },
+    {
+      "name": "admin unsupported POST /admin/users",
+      "method": "POST",
+      "path": "/admin/users",
+      "status": 404,
+      "runtime": {
+        "node": {
+          "bodyContains": "Cannot POST"
+        },
+        "go": {
+          "json": {
+            "message": "Not found"
+          }
+        }
+      }
+    },
+    {
+      "name": "users list",
+      "method": "GET",
+      "path": "/admin/users",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "users ignored unknown dates and arrays",
+      "method": "GET",
+      "path": "/admin/users?unknown=x&unknown=y&fromDate=bad&page[]=0",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "users page=0",
+      "method": "GET",
+      "path": "/admin/users?page=0",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "users page=1&page=2",
+      "method": "GET",
+      "path": "/admin/users?page=1&page=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "users pageSize=101",
+      "method": "GET",
+      "path": "/admin/users?pageSize=101",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "users pageSize=1&pageSize=2",
+      "method": "GET",
+      "path": "/admin/users?pageSize=1&pageSize=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "users page=1e1",
+      "method": "GET",
+      "path": "/admin/users?page=1e1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "users page=-1",
+      "method": "GET",
+      "path": "/admin/users?page=-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "users page=9007199254740992",
+      "method": "GET",
+      "path": "/admin/users?page=9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages list",
+      "method": "GET",
+      "path": "/admin/messages",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "messages ignored unknown dates and arrays",
+      "method": "GET",
+      "path": "/admin/messages?unknown=x&unknown=y&fromDate=bad&page[]=0",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "messages page=0",
+      "method": "GET",
+      "path": "/admin/messages?page=0",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages page=1&page=2",
+      "method": "GET",
+      "path": "/admin/messages?page=1&page=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages pageSize=101",
+      "method": "GET",
+      "path": "/admin/messages?pageSize=101",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages pageSize=1&pageSize=2",
+      "method": "GET",
+      "path": "/admin/messages?pageSize=1&pageSize=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages page=1e1",
+      "method": "GET",
+      "path": "/admin/messages?page=1e1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages page=-1",
+      "method": "GET",
+      "path": "/admin/messages?page=-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages page=9007199254740992",
+      "method": "GET",
+      "path": "/admin/messages?page=9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit list",
+      "method": "GET",
+      "path": "/admin/audit",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "audit ignored unknown dates and arrays",
+      "method": "GET",
+      "path": "/admin/audit?unknown=x&unknown=y&fromDate=bad&page[]=0",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "audit page=0",
+      "method": "GET",
+      "path": "/admin/audit?page=0",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit page=1&page=2",
+      "method": "GET",
+      "path": "/admin/audit?page=1&page=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit pageSize=101",
+      "method": "GET",
+      "path": "/admin/audit?pageSize=101",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit pageSize=1&pageSize=2",
+      "method": "GET",
+      "path": "/admin/audit?pageSize=1&pageSize=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit page=1e1",
+      "method": "GET",
+      "path": "/admin/audit?page=1e1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit page=-1",
+      "method": "GET",
+      "path": "/admin/audit?page=-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit page=9007199254740992",
+      "method": "GET",
+      "path": "/admin/audit?page=9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "security list",
+      "method": "GET",
+      "path": "/admin/security",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "security ignored unknown dates and arrays",
+      "method": "GET",
+      "path": "/admin/security?unknown=x&unknown=y&fromDate=bad&page[]=0",
+      "status": 200,
+      "json": {
+        "items": [],
+        "pagination": {
+          "page": 1,
+          "pageSize": 20,
+          "total": 0,
+          "totalPages": 0
+        }
+      }
+    },
+    {
+      "name": "security page=0",
+      "method": "GET",
+      "path": "/admin/security?page=0",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "security page=1&page=2",
+      "method": "GET",
+      "path": "/admin/security?page=1&page=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "security pageSize=101",
+      "method": "GET",
+      "path": "/admin/security?pageSize=101",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "security pageSize=1&pageSize=2",
+      "method": "GET",
+      "path": "/admin/security?pageSize=1&pageSize=2",
+      "status": 400,
+      "json": {
+        "message": "Invalid page size"
+      },
+      "validate": true
+    },
+    {
+      "name": "security page=1e1",
+      "method": "GET",
+      "path": "/admin/security?page=1e1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "security page=-1",
+      "method": "GET",
+      "path": "/admin/security?page=-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "security page=9007199254740992",
+      "method": "GET",
+      "path": "/admin/security?page=9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid page"
+      },
+      "validate": true
+    },
+    {
+      "name": "users search=%00",
+      "method": "GET",
+      "path": "/admin/users?search=%00",
+      "status": 400,
+      "json": {
+        "message": "Invalid search"
+      },
+      "validate": true
+    },
+    {
+      "name": "users search=a&search=b",
+      "method": "GET",
+      "path": "/admin/users?search=a&search=b",
+      "status": 400,
+      "json": {
+        "message": "Invalid search"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages status=read",
+      "method": "GET",
+      "path": "/admin/messages?status=read",
+      "status": 400,
+      "json": {
+        "message": "Invalid status"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages subject=bad",
+      "method": "GET",
+      "path": "/admin/messages?subject=bad",
+      "status": 400,
+      "json": {
+        "message": "Invalid subject"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages status=NEW&status=READ",
+      "method": "GET",
+      "path": "/admin/messages?status=NEW&status=READ",
+      "status": 400,
+      "json": {
+        "message": "Invalid status"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit actorUserId=-1",
+      "method": "GET",
+      "path": "/admin/audit?actorUserId=-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid actor user id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit action=%20",
+      "method": "GET",
+      "path": "/admin/audit?action=%20",
+      "status": 400,
+      "json": {
+        "message": "Invalid action"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit targetType=%00",
+      "method": "GET",
+      "path": "/admin/audit?targetType=%00",
+      "status": 400,
+      "json": {
+        "message": "Invalid target type"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit outcome=bad",
+      "method": "GET",
+      "path": "/admin/audit?outcome=bad",
+      "status": 400,
+      "json": {
+        "message": "Invalid outcome"
+      },
+      "validate": true
+    },
+    {
+      "name": "security statusCode=99",
+      "method": "GET",
+      "path": "/admin/security?statusCode=99",
+      "status": 400,
+      "json": {
+        "message": "Invalid status code"
+      },
+      "validate": true
+    },
+    {
+      "name": "security statusCode=600",
+      "method": "GET",
+      "path": "/admin/security?statusCode=600",
+      "status": 400,
+      "json": {
+        "message": "Invalid status code"
+      },
+      "validate": true
+    },
+    {
+      "name": "security statusCode=200&statusCode=201",
+      "method": "GET",
+      "path": "/admin/security?statusCode=200&statusCode=201",
+      "status": 400,
+      "json": {
+        "message": "Invalid status code"
+      },
+      "validate": true
+    },
+    {
+      "name": "security requestId=%20",
+      "method": "GET",
+      "path": "/admin/security?requestId=%20",
+      "status": 400,
+      "json": {
+        "message": "Invalid request id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security eventType=%00",
+      "method": "GET",
+      "path": "/admin/security?eventType=%00",
+      "status": 400,
+      "json": {
+        "message": "Invalid event type"
+      },
+      "validate": true
+    },
+    {
+      "name": "security outcome=bad",
+      "method": "GET",
+      "path": "/admin/security?outcome=bad",
+      "status": 400,
+      "json": {
+        "message": "Invalid outcome"
+      },
+      "validate": true
+    },
+    {
+      "name": "overview",
+      "method": "GET",
+      "path": "/admin/overview",
+      "status": 200,
+      "json": {
+        "members": {
+          "total": 0,
+          "newLast7Days": 0
+        },
+        "messages": {
+          "total": 0,
+          "new": 0
+        },
+        "sessions": {
+          "active": 0
+        }
+      }
+    },
+    {
+      "name": "messages invalid id -1",
+      "method": "GET",
+      "path": "/admin/messages/-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages invalid id 1.5",
+      "method": "GET",
+      "path": "/admin/messages/1.5",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages invalid id abc",
+      "method": "GET",
+      "path": "/admin/messages/abc",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages invalid id 9007199254740992",
+      "method": "GET",
+      "path": "/admin/messages/9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages invalid id %2F",
+      "method": "GET",
+      "path": "/admin/messages/%2F",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "validate": true
+    },
+    {
+      "name": "messages missing detail",
+      "method": "GET",
+      "path": "/admin/messages/999",
+      "status": 404,
+      "json": {
+        "message": "Contact message not found"
+      },
+      "scenario": "missing"
+    },
+    {
+      "name": "audit invalid id -1",
+      "method": "GET",
+      "path": "/admin/audit/-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid audit event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit invalid id 1.5",
+      "method": "GET",
+      "path": "/admin/audit/1.5",
+      "status": 400,
+      "json": {
+        "message": "Invalid audit event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit invalid id abc",
+      "method": "GET",
+      "path": "/admin/audit/abc",
+      "status": 400,
+      "json": {
+        "message": "Invalid audit event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit invalid id 9007199254740992",
+      "method": "GET",
+      "path": "/admin/audit/9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid audit event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit invalid id %2F",
+      "method": "GET",
+      "path": "/admin/audit/%2F",
+      "status": 400,
+      "json": {
+        "message": "Invalid audit event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "audit missing detail",
+      "method": "GET",
+      "path": "/admin/audit/999",
+      "status": 404,
+      "json": {
+        "message": "Audit event not found"
+      },
+      "scenario": "missing"
+    },
+    {
+      "name": "security invalid id -1",
+      "method": "GET",
+      "path": "/admin/security/-1",
+      "status": 400,
+      "json": {
+        "message": "Invalid security event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security invalid id 1.5",
+      "method": "GET",
+      "path": "/admin/security/1.5",
+      "status": 400,
+      "json": {
+        "message": "Invalid security event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security invalid id abc",
+      "method": "GET",
+      "path": "/admin/security/abc",
+      "status": 400,
+      "json": {
+        "message": "Invalid security event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security invalid id 9007199254740992",
+      "method": "GET",
+      "path": "/admin/security/9007199254740992",
+      "status": 400,
+      "json": {
+        "message": "Invalid security event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security invalid id %2F",
+      "method": "GET",
+      "path": "/admin/security/%2F",
+      "status": 400,
+      "json": {
+        "message": "Invalid security event id"
+      },
+      "validate": true
+    },
+    {
+      "name": "security missing detail",
+      "method": "GET",
+      "path": "/admin/security/999",
+      "status": 404,
+      "json": {
+        "message": "Security event not found"
+      },
+      "scenario": "missing"
+    },
+    {
+      "name": "admin options",
+      "method": "OPTIONS",
+      "path": "/admin/users",
+      "status": 200,
+      "text": "GET, HEAD"
+    },
+    {
+      "name": "admin status unknown client fields ignored",
+      "method": "PATCH",
+      "path": "/admin/messages/1/status",
+      "status": 200,
+      "json": {
+        "id": 1,
+        "status": "READ",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      },
+      "body": {
+        "status": "READ",
+        "actorUserId": 99,
+        "requestId": "client",
+        "message": "private"
+      }
+    },
+    {
+      "name": "admin status invalid",
+      "method": "PATCH",
+      "path": "/admin/messages/1/status",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message status"
+      },
+      "body": {
+        "status": "bad"
+      },
+      "validate": true
+    },
+    {
+      "name": "admin status invalid id",
+      "method": "PATCH",
+      "path": "/admin/messages/abc/status",
+      "status": 400,
+      "json": {
+        "message": "Invalid contact message id"
+      },
+      "body": {
+        "status": "READ"
+      },
+      "validate": true
+    },
+    {
+      "name": "admin status transition rejected",
+      "method": "PATCH",
+      "path": "/admin/messages/1/status",
+      "status": 409,
+      "json": {
+        "message": "Invalid contact message status transition"
+      },
+      "body": {
+        "status": "RESOLVED"
+      },
+      "scenario": "transition"
+    },
+    {
+      "name": "admin csrf",
+      "method": "PATCH",
+      "path": "/admin/messages/1/status",
+      "status": 403,
+      "json": {
+        "message": "CSRF protection header required"
+      },
+      "body": {
+        "status": "READ"
+      },
+      "noCSRF": true
+    },
+    {
+      "name": "admin json guard",
+      "method": "PATCH",
+      "path": "/admin/messages/1/status",
+      "status": 415,
+      "json": {
+        "message": "JSON request required"
+      },
+      "raw": "status=READ",
+      "contentType": "text/plain"
+    },
+    {
+      "name": "admin invalid session",
+      "method": "GET",
+      "path": "/admin/unknown",
+      "status": 401,
+      "json": {
+        "message": "Invalid or expired session"
+      },
+      "scenario": "invalid"
+    },
+    {
+      "name": "message decoded decimal id",
+      "method": "GET",
+      "path": "/admin/messages/%31",
+      "status": 200,
+      "json": {
+        "id": 1,
+        "name": "Test",
+        "phone": "09121234567",
+        "email": null,
+        "subject": "SUPPORT",
+        "message": "private body",
+        "status": "NEW",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "message malformed utf8 parameter",
+      "method": "GET",
+      "path": "/admin/messages/%E0%A4",
+      "status": 400,
+      "validate": true,
+      "runtime": {
+        "node": {
+          "bodyContains": "Failed to decode param"
+        },
+        "go": {
+          "json": {
+            "message": "Invalid contact message id"
+          }
+        }
+      }
+    },
+    {
+      "name": "message malformed percent parameter",
+      "method": "GET",
+      "path": "/admin/messages/%ZZ",
+      "status": 400,
+      "rawRequest": true,
+      "runtime": {
+        "node": {
+          "bodyContains": "Failed to decode param"
+        },
+        "go": {
+          "bodyContains": "Bad Request",
+          "noCacheHeader": true
+        }
+      }
+    },
+    {
+      "name": "message malformed utf8 unsupported method",
+      "method": "POST",
+      "path": "/admin/messages/%E0%A4",
+      "status": 400,
+      "runtime": {
+        "node": {
+          "bodyContains": "Failed to decode param"
+        },
+        "go": {
+          "json": {
+            "message": "Invalid contact message id"
+          }
+        }
+      }
+    },
+    {
+      "name": "message malformed utf8 options",
+      "method": "OPTIONS",
+      "path": "/admin/messages/%E0%A4",
+      "status": 400,
+      "runtime": {
+        "node": {
+          "bodyContains": "Failed to decode param"
+        },
+        "go": {
+          "json": {
+            "message": "Invalid contact message id"
+          }
+        }
+      }
+    },
+    {
+      "name": "empty dynamic message id",
+      "method": "PATCH",
+      "path": "/admin/messages//status",
+      "status": 404,
+      "body": {
+        "status": "READ"
+      },
+      "runtime": {
+        "node": {
+          "bodyContains": "Cannot PATCH"
+        },
+        "go": {
+          "json": {
+            "message": "Not found"
+          }
+        }
+      }
+    }
+  ]
+}

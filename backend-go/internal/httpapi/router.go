@@ -18,8 +18,18 @@ func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
 	// route letters do not accidentally become a different accepted endpoint.
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := asciiLower(strings.TrimSuffix(r.URL.EscapedPath(), "/"))
+		if path == "/admin" || strings.HasPrefix(path, "/admin/") {
+			handleAdmin(w, r, deps, path)
+			return
+		}
 		methods := ""
 		switch path {
+		case "/contact/messages":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleContact(w, r, deps.Contact)
+				return
+			}
 		case "/health":
 			methods = "GET, HEAD"
 			if r.Method == http.MethodGet || r.Method == http.MethodHead {
@@ -48,7 +58,7 @@ func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
 		case "/auth/register", "/auth/login", "/auth/login/mfa", "/auth/refresh", "/auth/logout":
 			methods = "POST"
 			if r.Method == http.MethodPost {
-				sessionGuard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handleSession(w, r, deps, path) }), func() (authconfig.Config, error) { return deps.Auth, nil }).ServeHTTP(w, r)
+				sessionGuardWithEvents(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handleSession(w, r, deps, path) }), func() (authconfig.Config, error) { return deps.Auth, nil }, deps).ServeHTTP(w, r)
 				return
 			}
 		case "/auth/me":

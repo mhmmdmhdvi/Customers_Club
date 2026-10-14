@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/events"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otp"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
@@ -28,6 +29,9 @@ type RouterDependencies struct {
 	VerifyCode  VerifyCodeService
 	Session     SessionService
 	Auth        authconfig.Config
+	Contact     ContactService
+	Admin       AdminService
+	Events      events.Recorder
 }
 
 func handleRequestCode(

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/events"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/session"
 )
@@ -67,6 +68,13 @@ func sessionFailure(w http.ResponseWriter, e error) {
 	}
 	writeSecurityError(w, 500, "Internal server error")
 }
+func errorStatus(e error) int {
+	var ae *session.Error
+	if errors.As(e, &ae) {
+		return ae.Status
+	}
+	return 500
+}
 func handleSession(w http.ResponseWriter, r *http.Request, deps RouterDependencies, path string) {
 	w.Header().Set("Cache-Control", "no-store")
 	if deps.Session == nil {
@@ -74,9 +82,8 @@ func handleSession(w http.ResponseWriter, r *http.Request, deps RouterDependenci
 		return
 	}
 	if path == "/auth/me" {
-		a, e := authenticate(r, deps.Session)
-		if e != nil {
-			sessionFailure(w, e)
+		a, ok := authentication(w, r, deps)
+		if !ok {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -120,6 +127,9 @@ func handleSession(w http.ResponseWriter, r *http.Request, deps RouterDependenci
 		refreshCookie(w, deps, "", time.Time{})
 		w.WriteHeader(204)
 		return
+	}
+	if (path == "/auth/login" || path == "/auth/login/mfa") && !grant.MFARequired && grant.User.Role == "ADMIN" {
+		events.BestEffort(r.Context(), deps.Events, events.Security{EventType: "ADMIN_LOGIN", Outcome: "SUCCESS", ActorUserID: &grant.User.ID, RequestID: RequestIDFromContext(r.Context()), Route: r.URL.EscapedPath(), StatusCode: 200})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if path == "/auth/login" && grant.MFARequired {

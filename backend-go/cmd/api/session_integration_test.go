@@ -137,4 +137,72 @@ func TestInitializedAPIRealSessionAndMFALifecycle(t *testing.T) {
 	if status != 401 {
 		t.Fatal("MFA replay", status)
 	}
+	// Stage5: all nine admin routes and public contact are exercised through
+	// initializeAPI's actual database services and production browser wrapper.
+	contactBody := `{"name":"Legacy contact","phone":"+98 912-1234567","email":null,"subject":"SUPPORT","message":"private fixture body"}`
+	for i := 0; i < 4; i++ {
+		status, v, _ = request("POST", "/contact/messages", contactBody, "", "")
+		want := 201
+		if i == 3 {
+			want = 429
+		}
+		if status != want {
+			t.Fatal("contact quota", status, v)
+		}
+	}
+	for _, path := range []string{"/admin/overview", "/admin/users", "/admin/messages", "/admin/audit", "/admin/security"} {
+		status, v, _ = request("GET", path, "", "", access)
+		if status != 200 {
+			t.Fatal(path, status, v)
+		}
+	}
+	status, v, _ = request("GET", "/admin/messages/1", "", "", access)
+	if status != 200 || v["email"] != nil || v["message"] != "private fixture body" {
+		t.Fatal("detail DTO", status, v)
+	}
+	status, v, _ = request("PATCH", "/admin/messages/1/status", `{"status":"READ","actorUserId":999,"requestId":"client-id","extra":true}`, "", access)
+	if status != 200 || v["status"] != "READ" {
+		t.Fatal("status transition", status, v)
+	}
+	status, v, _ = request("GET", "/admin/audit/1", "", "", access)
+	if status != 200 || v["actorUserId"] != uid || v["requestId"] == "client-id" || v["requestId"] == nil || v["details"].(map[string]any)["fromStatus"] != "NEW" {
+		t.Fatal("trusted atomic audit", status, v)
+	}
+	status, v, _ = request("GET", "/admin/security?eventType=ADMIN_LOGIN", "", "", access)
+	if status != 200 || v["pagination"].(map[string]any)["total"] != float64(1) {
+		t.Fatal("admin login event", status, v)
+	}
+	status, v, _ = request("GET", "/admin/security/1", "", "", access)
+	if status != 200 || v["eventType"] != "AUTHENTICATION_REJECTED" || v["route"] != "/auth/me" {
+		t.Fatal("security detail", status, v)
+	}
+	if _, e = p.Exec(context.Background(), `ALTER TABLE "AdminAuditEvent" ADD CONSTRAINT stage5_audit_failure CHECK (action <> 'CONTACT_MESSAGE_STATUS_CHANGED') NOT VALID`); e != nil {
+		t.Fatal(e)
+	}
+	status, v, _ = request("PATCH", "/admin/messages/1/status", `{"status":"RESOLVED"}`, "", access)
+	if status != 500 {
+		t.Fatal("required audit error", status, v)
+	}
+	status, v, _ = request("GET", "/admin/messages/1", "", "", access)
+	if status != 200 || v["status"] != "READ" {
+		t.Fatal("HTTP audit rollback", status, v)
+	}
+	if _, e = p.Exec(context.Background(), `ALTER TABLE "AdminAuditEvent" DROP CONSTRAINT stage5_audit_failure`); e != nil {
+		t.Fatal(e)
+	}
+	status, v, _ = request("PATCH", "/admin/messages/1/status", `{"status":"RESOLVED"}`, "", access)
+	if status != 200 {
+		t.Fatal("resolve", status, v)
+	}
+	if _, e = p.Exec(context.Background(), `UPDATE "User" SET role='MEMBER' WHERE id=$1`, int64(uid)); e != nil {
+		t.Fatal(e)
+	}
+	status, v, _ = request("GET", "/admin/unknown", "", "", access)
+	if status != 403 {
+		t.Fatal("live ADMIN role", status, v)
+	}
+	var rejected int
+	if e = p.QueryRow(context.Background(), `SELECT count(*) FROM "SecurityEvent" WHERE "eventType"='AUTHORIZATION_REJECTED' AND "actorUserId"=$1 AND route='/admin/unknown' AND "statusCode"=403`, int64(uid)).Scan(&rejected); e != nil || rejected != 1 {
+		t.Fatal("authorization security event", rejected, e)
+	}
 }
