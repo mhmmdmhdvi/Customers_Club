@@ -16,6 +16,8 @@ async function main() {
   assert.equal(identity.database, url.pathname.slice(1));
   assert.equal(identity.username, `mig_owner_${owned[1]}`);
   assert.equal(identity.marker, `customers-club-migration:${owned[1]}:${owned[2]}`);
+  const connections = await Promise.all(Array.from({ length: 6 }, () => pool.connect()));
+  for (const connection of connections) connection.release();
   const { PrismaClient } = require('../src/generated/prisma');
   const { PrismaPg } = require('@prisma/adapter-pg');
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });

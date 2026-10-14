@@ -34,8 +34,8 @@ const warmup, samples, concurrency, poolMax = 50, 500, 8, 6
 var paths = []string{
 	"/auth/me", "/admin/users", "/admin/users?page=500&pageSize=20",
 	"/admin/users?search=Needle", "/admin/overview",
-	"/admin/messages?status=NEW", "/admin/audit-events?action=CONTACT_MESSAGE_STATUS_CHANGED",
-	"/admin/security-events?eventType=ADMIN_LOGIN",
+	"/admin/messages?status=NEW", "/admin/audit?action=CONTACT_MESSAGE_STATUS_CHANGED",
+	"/admin/security?eventType=ADMIN_LOGIN",
 }
 
 type poolDelta struct {
