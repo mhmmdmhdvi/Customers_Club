@@ -238,7 +238,7 @@ func (s *Service) Detail(ctx context.Context, kind, raw string) (map[string]any,
 func (s *Service) Overview(ctx context.Context) (map[string]any, error) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	var members, recent, messages, newMessages, active int64
-	e := s.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM "User" WHERE role='MEMBER'),(SELECT count(*) FROM "User" WHERE role='MEMBER' AND "createdAt">=$1),(SELECT count(*) FROM "ContactMessage"),(SELECT count(*) FROM "ContactMessage" WHERE status='NEW'),(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">$2)`, now.Add(-7*24*time.Hour), now).Scan(&members, &recent, &messages, &newMessages, &active)
+	e := s.pool.QueryRow(ctx, `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">$2) FROM (SELECT count(*) total,count(*) FILTER (WHERE "createdAt">=$1) recent FROM "User" WHERE role='MEMBER') members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`, now.Add(-7*24*time.Hour), now).Scan(&members, &recent, &messages, &newMessages, &active)
 	if e != nil {
 		return nil, e
 	}
