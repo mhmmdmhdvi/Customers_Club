@@ -67,6 +67,7 @@ describe("AdminMessagesSection", () => {
                 .toHaveBeenCalledWith(
                     "http://localhost:3000/admin/messages?page=1&pageSize=20",
                     {
+                        signal: expect.any(AbortSignal),
                         headers: {
                             Authorization:
                                 "Bearer admin.access.token",
@@ -364,6 +365,7 @@ describe("AdminMessagesSection", () => {
         ).toEqual([
             "http://localhost:3000/admin/messages/42",
             {
+                signal: expect.any(AbortSignal),
                 headers: {
                     Authorization:
                         "Bearer admin.access.token",
@@ -489,6 +491,7 @@ describe("AdminMessagesSection", () => {
             "http://localhost:3000/admin/messages/42/status",
             {
                 method: "PATCH",
+                signal: expect.any(AbortSignal),
                 headers: {
                     Authorization:
                         "Bearer admin.access.token",

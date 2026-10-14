@@ -1,3 +1,4 @@
+import { getBirthdayParts, getLatestBirthday } from "../../utils/birthday";
 import {
     fireEvent,
     render,
@@ -15,10 +16,17 @@ import jalali from "react-date-object/calendars/jalali";
 import persianFa from "react-date-object/locales/persian_fa";
 import {
     BirthdayDatePicker,
-    getBirthdayParts,
 } from "./BirthdayDatePicker";
 
 describe("BirthdayDatePicker", () => {
+    it("handles a cleared calendar value", () => {
+        expect(getBirthdayParts(null)).toBeNull();
+    });
+
+    it("uses yesterday in Tehran across the UTC midnight boundary", () => {
+        const parts = getBirthdayParts(getLatestBirthday(new Date("2026-09-16T21:00:00Z")));
+        expect(parts).toEqual({ birthYear: 1405, birthMonth: 6, birthDay: 25 });
+    });
     it("renders the birthday label and a non-typing date picker trigger", () => {
         render(
             <BirthdayDatePicker
@@ -112,13 +120,6 @@ describe("BirthdayDatePicker", () => {
 
     it("passes the selected Jalali date to the parent as integer birthday fields", () => {
         const onChange = vi.fn();
-
-        const selectedDate = new DateObject({
-            calendar: jalali,
-            year: 1375,
-            month: 7,
-            day: 12,
-        });
 
         render(
             <BirthdayDatePicker

@@ -83,6 +83,7 @@ describe("AdminPage", () => {
                 .toHaveBeenCalledWith(
                     "http://localhost:3000/admin/overview",
                     {
+                        signal: expect.any(AbortSignal),
                         headers: {
                             Authorization:
                                 "Bearer admin.access.token",
@@ -209,6 +210,7 @@ describe("AdminPage", () => {
             .toHaveBeenCalledWith(
                 "http://localhost:3000/admin/users?page=1&pageSize=20",
                 {
+                    signal: expect.any(AbortSignal),
                     headers: {
                         Authorization:
                             "Bearer admin.access.token",
@@ -393,6 +395,7 @@ describe("AdminPage", () => {
             .toHaveBeenCalledWith(
                 "http://localhost:3000/admin/messages?page=1&pageSize=20",
                 {
+                    signal: expect.any(AbortSignal),
                     headers: {
                         Authorization:
                             "Bearer admin.access.token",
@@ -472,6 +475,7 @@ describe("AdminPage", () => {
             .toHaveBeenCalledWith(
                 "http://localhost:3000/admin/audit?page=1&pageSize=20",
                 {
+                    signal: expect.any(AbortSignal),
                     headers: {
                         Authorization:
                             "Bearer admin.access.token",
@@ -552,6 +556,7 @@ describe("AdminPage", () => {
             .toHaveBeenCalledWith(
                 "http://localhost:3000/admin/security?page=1&pageSize=20",
                 {
+                    signal: expect.any(AbortSignal),
                     headers: {
                         Authorization:
                             "Bearer admin.access.token",

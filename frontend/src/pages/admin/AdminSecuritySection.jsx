@@ -1,3 +1,4 @@
+import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     AlertTriangle,
     ShieldAlert,
@@ -90,6 +91,7 @@ function outcomeLabel(outcome) {
 export function AdminSecuritySection({
     accessToken,
 }) {
+    const request = useAuthenticatedRequest(accessToken);
     const [result, setResult] =
         useState(null);
 
@@ -98,10 +100,12 @@ export function AdminSecuritySection({
 
     useEffect(() => {
         let isCurrent = true;
+        const controller = new AbortController();
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/security?page=1&pageSize=20`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${accessToken}`,
@@ -136,8 +140,9 @@ export function AdminSecuritySection({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
-    }, [accessToken]);
+    }, [accessToken, request]);
 
     const events =
         result?.items ?? [];

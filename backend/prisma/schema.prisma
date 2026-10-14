@@ -12,9 +12,9 @@ model User {
   phone      String  @unique
   firstName  String?
   lastName   String?
-  birthYear  Int
-  birthMonth Int
-  birthDay   Int
+  birthYear  Int?
+  birthMonth Int?
+  birthDay   Int?
 
   role Role @default(MEMBER)
 

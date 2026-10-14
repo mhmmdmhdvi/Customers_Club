@@ -45,5 +45,6 @@ export function formatPersianBirthday({
     birthMonth,
     birthDay,
 }) {
+    if ([birthYear, birthMonth, birthDay].some(value => value == null)) return "ثبت نشده";
     return `${toPersianDigits(birthDay)} ${persianMonthNames[birthMonth - 1]} ${toPersianDigits(birthYear)}`;
 }

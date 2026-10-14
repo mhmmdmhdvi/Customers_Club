@@ -1,5 +1,8 @@
+import { credentialRequest } from "../auth/refreshSession";
+import { boundedFetch } from "../auth/request";
 import {
     useEffect,
+    useRef,
     useState,
 } from "react";
 import { useAuth } from "../auth/AuthContext";
@@ -37,8 +40,20 @@ export function LoginPage({
         session,
         authStatus,
         establishSession,
+        captureSession,
         clearSession,
+        logout,
     } = useAuth();
+    const pageGeneration = useRef(0);
+    useEffect(() => () => { pageGeneration.current++; }, []);
+    function captureGrant() {
+        const started = pageGeneration.current;
+        const apply = captureSession?.() ?? establishSession;
+        return grant => {
+            if (started !== pageGeneration.current) return false;
+            return apply(grant) !== false;
+        };
+    }
     const [pendingWebOtpCode, setPendingWebOtpCode] =
         useState("");
 
@@ -161,7 +176,7 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/request-code`,
                 {
                     method: "POST",
@@ -222,7 +237,7 @@ export function LoginPage({
         setIsRequestingCode(true);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/request-code`,
                 {
                     method: "POST",
@@ -286,7 +301,7 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/verify-code`,
                 {
                     method: "POST",
@@ -330,6 +345,7 @@ export function LoginPage({
                 setAutoVerifyEnabled(false);
 
                 try {
+                    const applyGrant = captureGrant();
                     const loginResult = await loginWithProof(
                         data.verificationToken,
                     );
@@ -345,7 +361,7 @@ export function LoginPage({
                         return;
                     }
 
-                    establishSession(loginResult);
+                    if (!applyGrant(loginResult)) return;
 
                     toast.success(
                         "ورود با موفقیت انجام شد.",
@@ -455,7 +471,8 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const applyGrant = captureGrant();
+            const response = await credentialRequest(
                 `${API_BASE_URL}/auth/register`,
                 {
                     method: "POST",
@@ -499,7 +516,7 @@ export function LoginPage({
                 return;
             }
 
-            establishSession(nextSession);
+            if (!applyGrant(nextSession)) return;
 
             toast.success(
                 "عضویت شما با موفقیت انجام شد.",
@@ -518,8 +535,8 @@ export function LoginPage({
     }
 
     async function loginWithProof(verificationToken) {
-        const response = await fetch(
-            `${API_BASE_URL}/auth/login`,
+        const response = await credentialRequest(
+                `${API_BASE_URL}/auth/login`,
             {
                 method: "POST",
                 credentials: "include",
@@ -574,7 +591,8 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const applyGrant = captureGrant();
+            const response = await credentialRequest(
                 `${API_BASE_URL}/auth/login/mfa`,
                 {
                     method: "POST",
@@ -615,9 +633,7 @@ export function LoginPage({
                     data,
                 );
 
-            establishSession(
-                nextSession,
-            );
+            if (!applyGrant(nextSession)) return;
 
             toast.success(
                 "ورود با موفقیت انجام شد.",
@@ -643,7 +659,7 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const response = logout ? null : await credentialRequest(
                 `${API_BASE_URL}/auth/logout`,
                 {
                     method: "POST",
@@ -656,13 +672,14 @@ export function LoginPage({
                 },
             );
 
-            if (response.status !== 204) {
-                throw new Error("Logout was not confirmed");
+            if (logout) await logout();
+            else {
+                if (response.status !== 204) throw new Error("Logout was not confirmed");
+                clearSession({ confirmedLogout: true });
             }
 
             // Successful logout has no JSON response body.
             // Clear the session and reset the form.
-            clearSession();
             toast.success(
                 "با موفقیت از حساب خارج شدید.",
             );
@@ -748,6 +765,12 @@ export function LoginPage({
                                 ورود / عضویت
                             </h2>
                         </div>
+
+                        {authStatus === "error" && (
+                            <p role="alert" className="mt-4 text-sm leading-7 text-muted-foreground">
+                                تمدید ورود تأیید نشد. برای ادامه دوباره وارد شوید.
+                            </p>
+                        )}
 
                         {authStatus === "restoring" ? (
                             <div
@@ -993,8 +1016,8 @@ export function LoginPage({
                                         </h2>
 
                                         <p className="mt-4 text-lg font-semibold">
-                                            {session.user.firstName}{" "}
-                                            {session.user.lastName}
+                                            {session.user.firstName ?? "ثبت نشده"}{" "}
+                                            {session.user.lastName ?? "ثبت نشده"}
                                         </p>
 
                                         <p className="mt-3 text-sm leading-7 text-muted-foreground">

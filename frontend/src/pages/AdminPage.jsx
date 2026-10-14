@@ -1,3 +1,4 @@
+import { useAuthenticatedRequest } from "../auth/useAuthenticatedRequest";
 import {
     Activity,
     LayoutDashboard,
@@ -63,6 +64,7 @@ export function AdminPage({
         session,
         authStatus,
     } = useAuth();
+    const request = useAuthenticatedRequest(session?.accessToken);
 
     const [overview, setOverview] =
         useState(null);
@@ -111,10 +113,12 @@ export function AdminPage({
         }
 
         let isCurrent = true;
+        const controller = new AbortController();
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/overview`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${session.accessToken}`,
@@ -153,9 +157,11 @@ export function AdminPage({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
     }, [
         pathname,
+        request,
         authStatus,
         session,
     ]);

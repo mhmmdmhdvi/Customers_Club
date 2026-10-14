@@ -1,3 +1,4 @@
+import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     Activity,
     CheckCircle2,
@@ -68,6 +69,7 @@ function outcomeLabel(outcome) {
 export function AdminActivitySection({
     accessToken,
 }) {
+    const request = useAuthenticatedRequest(accessToken);
     const [result, setResult] =
         useState(null);
 
@@ -76,10 +78,12 @@ export function AdminActivitySection({
 
     useEffect(() => {
         let isCurrent = true;
+        const controller = new AbortController();
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/audit?page=1&pageSize=20`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${accessToken}`,
@@ -114,8 +118,9 @@ export function AdminActivitySection({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
-    }, [accessToken]);
+    }, [accessToken, request]);
 
     const events =
         result?.items ?? [];

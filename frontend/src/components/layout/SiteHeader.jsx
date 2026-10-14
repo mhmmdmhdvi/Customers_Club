@@ -8,6 +8,7 @@ import {
 import { useToast } from "../ui/ToastContext";
 import { useAuth } from "../../auth/AuthContext";
 import megatiteMark from "../../assets/branding/megatite-mark.svg";
+import { credentialRequest } from "../../auth/refreshSession";
 
 const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -69,7 +70,7 @@ export function SiteHeader({
         setIsLoggingOut(true);
 
         try {
-            const response = await fetch(
+            const response = auth?.logout ? null : await credentialRequest(
                 `${API_BASE_URL}/auth/logout`,
                 {
                     method: "POST",
@@ -82,11 +83,12 @@ export function SiteHeader({
                 },
             );
 
-            if (response.status !== 204) {
-                return;
+            if (auth?.logout) {
+                await auth.logout();
+            } else {
+                if (response.status !== 204) throw new Error("Logout was not confirmed");
+                clearSession({ confirmedLogout: true });
             }
-
-            clearSession();
 
             toast.success(
                 "با موفقیت از حساب خارج شدید.",
@@ -94,6 +96,8 @@ export function SiteHeader({
 
             closeMenu();
             onLoggedOut();
+        } catch {
+            toast.error("خروج تأیید نشد. برای ادامه دوباره وارد شوید.");
         } finally {
             setIsLoggingOut(false);
         }

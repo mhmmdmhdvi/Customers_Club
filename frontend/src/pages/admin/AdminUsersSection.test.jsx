@@ -82,6 +82,7 @@ describe("AdminUsersSection", () => {
                 .toHaveBeenCalledWith(
                     "http://localhost:3000/admin/users?page=1&pageSize=20",
                     {
+                        signal: expect.any(AbortSignal),
                         headers: {
                             Authorization:
                                 "Bearer admin.access.token",

@@ -1,3 +1,4 @@
+import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     Eye,
     Mail,
@@ -92,6 +93,7 @@ function nextStatusButtonLabel(status) {
 export function AdminMessagesSection({
     accessToken,
 }) {
+    const request = useAuthenticatedRequest(accessToken);
     const [result, setResult] =
         useState(null);
 
@@ -139,6 +141,7 @@ export function AdminMessagesSection({
 
     useEffect(() => {
         let isCurrent = true;
+        const controller = new AbortController();
 
         const params =
             new URLSearchParams({
@@ -168,9 +171,10 @@ export function AdminMessagesSection({
             );
         }
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/messages?${params.toString()}`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${accessToken}`,
@@ -205,9 +209,11 @@ export function AdminMessagesSection({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
     }, [
         accessToken,
+        request,
         page,
         filters,
     ]);
@@ -241,7 +247,7 @@ export function AdminMessagesSection({
         setStatusActionStatus("idle");
 
         try {
-            const response = await fetch(
+            const response = await request(
                 `${API_BASE_URL}/admin/messages/${message.id}`,
                 {
                     headers: {
@@ -331,7 +337,7 @@ export function AdminMessagesSection({
         setStatusActionStatus("loading");
 
         try {
-            const response = await fetch(
+            const response = await request(
                 `${API_BASE_URL}/admin/messages/${selectedMessage.id}/status`,
                 {
                     method: "PATCH",

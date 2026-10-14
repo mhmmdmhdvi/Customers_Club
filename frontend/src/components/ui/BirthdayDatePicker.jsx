@@ -3,20 +3,13 @@ import jalali from "react-date-object/calendars/jalali";
 import persianFa from "react-date-object/locales/persian_fa";
 import DateObject from "react-date-object";
 import DatePicker from "react-multi-date-picker";
+import { getLatestBirthday, getBirthdayParts } from "../../utils/birthday";
 
 function toPersianDigits(value) {
     return String(value).replace(
         /\d/g,
         (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)],
     );
-}
-
-export function getBirthdayParts(date) {
-    return {
-        birthYear: date.year,
-        birthMonth: date.month.number,
-        birthDay: date.day,
-    };
 }
 
 function BirthdayTrigger({
@@ -57,8 +50,7 @@ export function BirthdayDatePicker({
         ? `${toPersianDigits(value.birthYear)}/${toPersianDigits(value.birthMonth)}/${toPersianDigits(value.birthDay)}`
         : "";
 
-    const latestBirthday = new Date();
-    latestBirthday.setDate(latestBirthday.getDate() - 1);
+    const latestBirthday = getLatestBirthday();
 
     return (
         <div>
