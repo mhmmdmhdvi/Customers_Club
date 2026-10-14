@@ -11,7 +11,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $AllowPerformance) { throw 'Explicit -AllowPerformance required.' }
-if (([int]$TrigramCandidate + [int]$OverviewCandidate + [int]$FastupdateCandidate) -gt 1) { throw 'Choose one candidate experiment.' }
+if (([int]$TrigramCandidate.IsPresent + [int]$OverviewCandidate.IsPresent + [int]$FastupdateCandidate.IsPresent) -gt 1) { throw 'Choose one candidate experiment.' }
 $repo = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $destination = [IO.Path]::GetFullPath($Output)
 if (-not (Test-Path -LiteralPath (Split-Path -Parent $destination))) { throw 'Output directory must already exist.' }
