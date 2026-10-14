@@ -26,58 +26,58 @@ Preserve Node paths, fields, statuses and security semantics. JWT TTL <=900 seco
 
 Files: backend-go/cmd/api/{main,main_run,http_server,runtime_wiring}.go; backend-go/internal/httpapi/{router,browser}.go; backend-go/internal/otpdb/transaction.go and covering tests.
 Interfaces: export httpapi.WithBrowserPolicy(handler http.Handler, config authconfig.Config) http.Handler; add serveHTTP(ctx context.Context, address string, handler http.Handler) error; preserve runAPI and initializeAPI signatures.
-- [ ] Add failing tests for preflight/exact origins, configured server cancellation, production main dependency entrypoint, and panic rollback.
-- [ ] Run the new tests and record expected failures.
-- [ ] Connect startup, bounded startup/query contexts, browser policy, JSON errors, and shutdown; guarantee rollback with independent cleanup context.
-- [ ] Run go test ./... and go vet ./...; review task diff.
+- [x] Add failing tests for preflight/exact origins, configured server cancellation, production main dependency entrypoint, and panic rollback.
+- [x] Run the new tests and record expected failures.
+- [x] Connect startup, bounded startup/query contexts, browser policy, JSON errors, and shutdown; guarantee rollback with independent cleanup context.
+- [x] Run go test ./... and go vet ./...; review task diff.
 
 ### Task 2: Shared contracts and database harness
 
 Files: contracts/http.json; backend/tests/api-contract.test.js; backend-go/internal/httpapi/contract_test.go; backend-go/internal/testdb/; scripts/test-postgres.ps1; docs/migration-progress.md.
 Interfaces: shared fixtures specify method/path/body/status/JSON/headers; testdb.Open(t testing.TB) *pgxpool.Pool opens a uniquely named test database only with MIGRATION_TEST_DATABASE_URL and an explicit test opt-in.
-- [ ] Add contract fixtures exercising real Node HTTP boundaries and Go HTTP boundaries, with deterministic service dependencies.
-- [ ] Observe incompatibilities, then align Go behavior while preserving Node contracts.
-- [ ] Create a loopback-only disposable PostgreSQL cluster with random credentials; apply checked-in schema migrations only there.
-- [ ] Run Node/Go contracts, offline suites, and a real database smoke test; review task diff.
+- [x] Add contract fixtures exercising real Node HTTP boundaries and Go HTTP boundaries, with deterministic service dependencies.
+- [x] Observe incompatibilities, then align Go behavior while preserving Node contracts.
+- [x] Create a loopback-only disposable PostgreSQL cluster with random credentials; apply checked-in schema migrations only there.
+- [x] Run Node/Go contracts, offline suites, and a real database smoke test; review task diff.
 
 ### Task 3: Registration, sessions and MFA
 
 Files: backend-go/internal/{session,adminmfa}/; backend-go/internal/httpapi/session.go; startup/runtime wiring; shared contracts and integration tests.
 Interfaces: session.New(pool *pgxpool.Pool, auth authconfig.Config, mfaKey []byte) (*Service,error); session service owns Register/Login/CompleteMFA/Refresh/Logout/Authenticate; HTTP router dependencies use narrow service interfaces.
-- [ ] Add failing service and HTTP tests for all six session endpoints and MFA challenges.
-- [ ] Implement Node-compatible name/Jalali validation, proof claims, session issuance and cookies.
-- [ ] Implement rotation/replay revocation, idempotent logout, live session/user checks, encrypted TOTP credentials, five-attempt challenges and counter replay protection.
-- [ ] Verify real PostgreSQL rollback/concurrent claims plus shared contracts and complete Go suite; review task diff.
+- [x] Add failing service and HTTP tests for all six session endpoints and MFA challenges.
+- [x] Implement Node-compatible name/Jalali validation, proof claims, session issuance and cookies.
+- [x] Implement rotation/replay revocation, idempotent logout, live session/user checks, encrypted TOTP credentials, five-attempt challenges and counter replay protection.
+- [x] Verify real PostgreSQL rollback/concurrent claims plus shared contracts and complete Go suite; review task diff.
 
 ### Task 4: Birthday migration and frontend renewal
 
 Files: backend/prisma/schema.prisma; new additive migration; scripts/legacy-migration.*; frontend/src/auth/{AuthProvider,api,refreshSession,sessionResponse}.*; frontend admin request sites and date formatting.
 Interfaces: legacy migration runner operates only against explicitly guarded targets and supplies an alternative pending birthday migration path, leaving already-applied files intact; api request helper renews via existing cross-tab coordinator before safe API calls.
-- [ ] Add failing populated-schema migration tests and legacy birthday/session tests.
-- [ ] Add a migration-safe nullable legacy path and explicit backfill/enforcement instructions; retain required birthday validation for new registrations.
-- [ ] Add failing expiry/401/cross-tab tests, then proactive/safe request renewal, expiry timers, cancellation and recoverable UI state.
-- [ ] Run frontend suite/lint and PostgreSQL migration/concurrency checks; review task diff.
+- [x] Add failing populated-schema migration tests and legacy birthday/session tests.
+- [x] Add a migration-safe nullable legacy path and explicit backfill/enforcement instructions; retain required birthday validation for new registrations.
+- [x] Add failing expiry/401/cross-tab tests, then proactive/safe request renewal, expiry timers, cancellation and recoverable UI state.
+- [x] Run frontend suite/lint and PostgreSQL migration/concurrency checks; review task diff.
 
 ### Task 5: Contact, admin, audit and security
 
 Files: backend-go/internal/{contact,admin,events}/; backend-go/internal/httpapi/{contact,admin}.go; runtime wiring; shared contracts and DB tests.
-- [ ] Add failing tests for contact quota/validation and all nine admin endpoints.
-- [ ] Implement filtered paginated reads, overview counts, detail endpoints and role guards with current session identity.
-- [ ] Implement locked contact quota and conditional NEW->READ->RESOLVED transitions with transactional sanitized audits; preserve security event behavior.
-- [ ] Verify real database queries, concurrent transitions and shared contracts; run full Go suite and review diff.
+- [x] Add failing tests for contact quota/validation and all nine admin endpoints.
+- [x] Implement filtered paginated reads, overview counts, detail endpoints and role guards with current session identity.
+- [x] Implement locked contact quota and conditional NEW->READ->RESOLVED transitions with transactional sanitized audits; preserve security event behavior.
+- [x] Verify real database queries, concurrent transitions and shared contracts; run full Go suite and review diff.
 
 ### Task 6: Measurements and optimization
 
 Files: backend-go/internal/perftest/; scripts/benchmark.*; docs/performance.md; measured query files and additive index migration if justified.
-- [ ] Seed deterministic disposable workloads and measure HTTP latency, throughput and database plans.
-- [ ] Record baseline before modifying demonstrated hot paths.
-- [ ] Apply narrowly justified query/index/pool improvements and remeasure identical workloads.
-- [ ] Retain functional/concurrency checks and publish reproducible results with limits; review diff.
+- [x] Seed deterministic disposable workloads and measure HTTP latency, throughput and database plans.
+- [x] Record baseline before modifying demonstrated hot paths.
+- [x] Apply narrowly justified query/index/pool improvements and remeasure identical workloads.
+- [x] Retain functional/concurrency checks and publish reproducible results with limits; review diff.
 
 ### Task 7: Consolidation and delivery verification
 
 Files: shared frontend/backend helpers; .github/workflows/ci.yml; Dockerfile/compose; environment examples; root and backend-go README; deployment scripts and tests.
-- [ ] Consolidate repeated parsers/request helpers and duplicate middleware while preserving contract tests.
-- [ ] Add CI for Node/Go/frontend plus disposable PostgreSQL integration and migration rehearsal.
-- [ ] Add deployable images, reverse proxy/same-site guidance, readiness, shutdown, secrets/configuration examples and smoke verification.
-- [ ] Run all suites, lint, build, vet/race checks, contracts and database checks; perform independent whole-change review and address findings.
+- [x] Consolidate repeated parsers/request helpers and duplicate middleware while preserving contract tests.
+- [x] Add CI for Node/Go/frontend plus disposable PostgreSQL integration and migration rehearsal.
+- [x] Add deployable images, reverse proxy/same-site guidance, readiness, shutdown, secrets/configuration examples and smoke verification.
+- [x] Run all available local suites, lint, build, vet, contracts and database checks; perform independent whole-change review and address findings. Linux race and Docker/hosted CI execution are configured but remain unverified in this environment.
