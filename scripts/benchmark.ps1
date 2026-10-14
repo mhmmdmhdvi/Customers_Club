@@ -6,11 +6,12 @@ param(
   [switch]$AllowPerformance,
   [switch]$TrigramCandidate,
   [switch]$OverviewCandidate,
-  [switch]$FlushGinPending
+  [switch]$FlushGinPending,
+  [switch]$FastupdateCandidate
 )
 $ErrorActionPreference = 'Stop'
 if (-not $AllowPerformance) { throw 'Explicit -AllowPerformance required.' }
-if ($TrigramCandidate -and $OverviewCandidate) { throw 'Choose one candidate experiment.' }
+if (([int]$TrigramCandidate + [int]$OverviewCandidate + [int]$FastupdateCandidate) -gt 1) { throw 'Choose one candidate experiment.' }
 $repo = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $destination = [IO.Path]::GetFullPath($Output)
 if (-not (Test-Path -LiteralPath (Split-Path -Parent $destination))) { throw 'Output directory must already exist.' }
@@ -19,6 +20,7 @@ $env:ALLOW_MIGRATION_PERFORMANCE = '1'
 $env:MIGRATION_PERFORMANCE_OUTPUT = $destination
 if ($TrigramCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'trigram' }
 elseif ($OverviewCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'overview' }
+elseif ($FastupdateCandidate) { $env:MIGRATION_PERFORMANCE_CANDIDATE = 'fastupdate' }
 if ($FlushGinPending) { $env:MIGRATION_PERFORMANCE_FLUSH_GIN = '1' }
 Push-Location (Join-Path $repo 'backend-go')
 try {

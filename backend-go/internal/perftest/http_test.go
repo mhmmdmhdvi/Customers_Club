@@ -85,6 +85,10 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	if output == "" {
 		t.Fatal("performance evidence output path required")
 	}
+	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "fastupdate" {
+		runGINFastupdateComparison(t, output)
+		return
+	}
 	owned := testdb.Open(t)
 	cfg := owned.Config().Copy()
 	cfg.MaxConns, cfg.MinConns = poolMax, poolMax
