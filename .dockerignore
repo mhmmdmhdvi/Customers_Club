@@ -8,6 +8,4 @@
 .superpowers
 deployment/secrets
 deployment/tls
-backend/scripts/promote-local-admin.js
-backend/src/generated
 **/*.exe

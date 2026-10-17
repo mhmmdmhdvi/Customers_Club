@@ -7,19 +7,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/migrate"
 )
 
 var parentPattern = regexp.MustCompile(`^mig_parent_([a-f0-9]{16})$`)
@@ -72,14 +69,14 @@ func targetConfig(raw, optin string) (*pgxpool.Config, error) {
 	return cfg, nil
 }
 
-// Open creates a new owned database and applies the checked-in Prisma SQL.
+// Open creates a new owned database and applies the embedded checksummed Go migrations.
 func Open(t testing.TB) *pgxpool.Pool { t.Helper(); return open(t, true) }
 
 // OpenEmpty provides the same isolation without applying schema migrations,
-// for rehearsing historical/populated-schema upgrades in later stages.
+// for testing the native migration runner.
 func OpenEmpty(t testing.TB) *pgxpool.Pool { t.Helper(); return open(t, false) }
 
-func open(t testing.TB, migrate bool) *pgxpool.Pool {
+func open(t testing.TB, apply bool) *pgxpool.Pool {
 	t.Helper()
 	raw, optin := testURL(), testOptIn()
 	if raw == "" || optin != "1" {
@@ -148,8 +145,8 @@ func open(t testing.TB, migrate bool) *pgxpool.Pool {
 	if err := pool.QueryRow(ctx, "SELECT current_database(),current_user").Scan(&actualDB, &actualUser); err != nil || actualDB != name || actualUser != owner {
 		t.Fatal("disposable database identity mismatch")
 	}
-	if migrate {
-		if err := applyMigrations(ctx, pool); err != nil {
+	if apply {
+		if err := migrate.Apply(ctx, pool); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -163,9 +160,12 @@ func validateParent(ctx context.Context, pool *pgxpool.Pool, database, user stri
 	}
 	var actualDB, actualUser, sessionUser, dbOwner string
 	var dbMarker, roleMarker *string
-	err := pool.QueryRow(ctx, `SELECT current_database(),current_user,session_user,pg_get_userbyid(d.datdba),shobj_description(d.oid,'pg_database'),shobj_description(r.oid,'pg_authid') FROM pg_database d JOIN pg_roles r ON r.rolname=current_user WHERE d.datname=current_database()`).Scan(&actualDB, &actualUser, &sessionUser, &dbOwner, &dbMarker, &roleMarker)
+	var superuser, createRole bool
+	var address string
+	var port int
+	err := pool.QueryRow(ctx, `SELECT current_database(),current_user,session_user,pg_get_userbyid(d.datdba),shobj_description(d.oid,'pg_database'),shobj_description(r.oid,'pg_authid'),r.rolsuper,r.rolcreaterole,host(inet_server_addr()),inet_server_port() FROM pg_database d JOIN pg_roles r ON r.rolname=current_user WHERE d.datname=current_database()`).Scan(&actualDB, &actualUser, &sessionUser, &dbOwner, &dbMarker, &roleMarker, &superuser, &createRole, &address, &port)
 	marker := "customers-club-migration:" + match[1]
-	if err != nil || actualDB != database || actualUser != user || sessionUser != user || dbOwner != user || dbMarker == nil || *dbMarker != marker || roleMarker == nil || *roleMarker != marker {
+	if err != nil || actualDB != database || actualUser != user || sessionUser != user || dbOwner != user || dbMarker == nil || *dbMarker != marker || roleMarker == nil || *roleMarker != marker || superuser || createRole || (address != "127.0.0.1" && address != "::1") || port == 5432 {
 		return errors.New("migration parent database/user identity or ownership marker mismatch")
 	}
 	return nil
@@ -184,39 +184,11 @@ func dropOwned(ctx context.Context, parent *pgxpool.Pool, name, owner, marker st
 	if err != nil || actualOwner != owner || (marker != "" && (actualMarker == nil || *actualMarker != marker)) || (marker == "" && actualMarker != nil) {
 		return errors.New("refusing to drop database with unexpected owner or ownership marker")
 	}
-	if _, err := parent.Exec(ctx, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
+	// All managed child pools have closed. Ordinary DROP lets PostgreSQL wait
+	// for its autovacuum workers without FORCE's backend-role privilege checks,
+	// and refuses unexpected live clients rather than terminating them.
+	if _, err := parent.Exec(ctx, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()); err != nil {
 		return errors.New("owned DROP DATABASE failed")
-	}
-	return nil
-}
-
-func applyMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	_, source, _, ok := runtime.Caller(0)
-	if !ok {
-		return errors.New("cannot locate migration schema")
-	}
-	root := filepath.Join(filepath.Dir(source), "..", "..", "..", "backend", "prisma", "migrations")
-	paths, err := filepath.Glob(filepath.Join(root, "*", "migration.sql"))
-	if err != nil || len(paths) == 0 {
-		return errors.New("checked-in Prisma migration SQL missing")
-	}
-	sort.Strings(paths)
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return errors.New("migration transaction failed")
-	}
-	defer tx.Rollback(context.Background())
-	for _, path := range paths {
-		sql, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read migration %s failed", filepath.Base(filepath.Dir(path)))
-		}
-		if _, err := tx.Exec(ctx, string(sql)); err != nil {
-			return fmt.Errorf("apply migration %s failed: %w", filepath.Base(filepath.Dir(path)), err)
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return errors.New("schema migration commit failed")
 	}
 	return nil
 }

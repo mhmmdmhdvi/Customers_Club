@@ -1,19 +1,15 @@
 package perftest
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -56,7 +52,6 @@ type evidence struct {
 	Revision        string                `json:"revision"`
 	Started         string                `json:"startedUtc"`
 	Go              string                `json:"go"`
-	Node            string                `json:"node"`
 	OS              string                `json:"os"`
 	CPUs            int                   `json:"logicalCpus"`
 	GOMAXPROCS      int                   `json:"gomaxprocs"`
@@ -68,7 +63,6 @@ type evidence struct {
 	Settings        map[string]string     `json:"postgresSettings"`
 	Plans           map[string][]string   `json:"explainAnalyzeBuffers"`
 	Results         map[string][]endpoint `json:"results"`
-	Candidate       map[string]any        `json:"candidate,omitempty"`
 	SeedMaintenance map[string]any        `json:"seedMaintenance"`
 }
 
@@ -84,10 +78,6 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	output := os.Getenv("MIGRATION_PERFORMANCE_OUTPUT")
 	if output == "" {
 		t.Fatal("performance evidence output path required")
-	}
-	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "fastupdate" {
-		runGINFastupdateComparison(t, output)
-		return
 	}
 	owned := testdb.Open(t)
 	cfg := owned.Config().Copy()
@@ -120,22 +110,8 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	server := httptest.NewServer(httpapi.WithBrowserPolicy(httpapi.NewRouterWithDependencies(httpapi.RouterDependencies{Session: service, Auth: auth, Admin: admin.New(p)}), auth))
 	defer server.Close()
 	revision, _ := exec.Command("git", "rev-parse", "HEAD").Output()
-	nodeVersion, _ := exec.Command("node", "--version").Output()
-	data := evidence{Revision: strings.TrimSpace(string(revision)), Started: time.Now().UTC().Format(time.RFC3339), Go: runtime.Version(), Node: strings.TrimSpace(string(nodeVersion)), OS: runtime.GOOS + "/" + runtime.GOARCH, CPUs: runtime.NumCPU(), GOMAXPROCS: runtime.GOMAXPROCS(0), PoolMax: poolMax, PoolMin: poolMax, Warmup: warmup, Concurrency: concurrency, Seed: map[string]int{"users": 100000, "sessions": 20000, "messages": 20000, "audit": 20000, "security": 20000}, Settings: map[string]string{}, Plans: map[string][]string{}, Results: map[string][]endpoint{}}
+	data := evidence{Revision: strings.TrimSpace(string(revision)), Started: time.Now().UTC().Format(time.RFC3339), Go: runtime.Version(), OS: runtime.GOOS + "/" + runtime.GOARCH, CPUs: runtime.NumCPU(), GOMAXPROCS: runtime.GOMAXPROCS(0), PoolMax: poolMax, PoolMin: poolMax, Warmup: warmup, Concurrency: concurrency, Seed: map[string]int{"users": 100000, "sessions": 20000, "messages": 20000, "audit": 20000, "security": 20000}, Settings: map[string]string{}, Plans: map[string][]string{}, Results: map[string][]endpoint{}}
 	data.SeedMaintenance = map[string]any{"ginPendingList": "default-after-bulk-seed"}
-	if os.Getenv("MIGRATION_PERFORMANCE_FLUSH_GIN") == "1" {
-		var present bool
-		if err = p.QueryRow(ctx, `SELECT to_regclass('"User_search_trgm_idx"') IS NOT NULL`).Scan(&present); err != nil {
-			t.Fatal(err)
-		}
-		if present {
-			var pages int64
-			if err = p.QueryRow(ctx, `SELECT gin_clean_pending_list('"User_search_trgm_idx"')`).Scan(&pages); err != nil {
-				t.Fatal("owned GIN cleanup failed", err)
-			}
-			data.SeedMaintenance = map[string]any{"ginPendingList": "explicitly-cleaned-after-bulk-seed", "pagesFlushed": pages}
-		}
-	}
 	for _, setting := range []string{"server_version", "shared_buffers", "work_mem", "max_connections", "effective_cache_size", "random_page_cost", "jit", "track_io_timing", "timezone"} {
 		var value string
 		if err = p.QueryRow(ctx, "SHOW "+setting).Scan(&value); err != nil {
@@ -144,42 +120,10 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 		data.Settings[setting] = value
 	}
 	capturePlans(t, ctx, p, data.Plans)
-	workload := paths
-	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "trigram" {
-		workload = paths[3:4]
-	} else if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "overview" {
-		workload = paths[4:5]
-	}
-	for _, path := range workload {
+	for _, path := range paths {
 		result := measure(t, server.URL, path, token.AccessToken, p)
 		data.Results["go"] = append(data.Results["go"], result)
 		t.Logf("go %s p50=%.2f p95=%.2f p99=%.2f rps=%.2f", path, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
-	}
-	nodeURL := startNode(t, ctx, p)
-	for _, path := range workload {
-		result := measure(t, nodeURL, path, token.AccessToken, nil)
-		data.Results["node"] = append(data.Results["node"], result)
-		t.Logf("node %s p50=%.2f p95=%.2f p99=%.2f rps=%.2f", path, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
-	}
-	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "trigram" {
-		trigramCandidate(t, ctx, p, &data)
-		for implementation, base := range map[string]string{"candidateGo": server.URL, "candidateNode": nodeURL} {
-			var measuredPool *pgxpool.Pool
-			if implementation == "candidateGo" {
-				measuredPool = p
-			}
-			result := measure(t, base, paths[3], token.AccessToken, measuredPool)
-			data.Results[implementation] = []endpoint{result}
-			t.Logf("%s search p50=%.2f p95=%.2f p99=%.2f rps=%.2f", implementation, result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
-		}
-	}
-	if os.Getenv("MIGRATION_PERFORMANCE_CANDIDATE") == "overview" {
-		candidate := httptest.NewServer(httpapi.WithBrowserPolicy(httpapi.NewRouterWithDependencies(httpapi.RouterDependencies{Session: service, Auth: auth, Admin: overviewCandidate{admin.New(p), p}}), auth))
-		defer candidate.Close()
-		result := measure(t, candidate.URL, paths[4], token.AccessToken, p)
-		data.Results["candidateGo"] = []endpoint{result}
-		data.Candidate = map[string]any{"kind": "overview-single-pass"}
-		t.Logf("candidateGo overview p50=%.2f p95=%.2f p99=%.2f rps=%.2f", result.P50MS, result.P95MS, result.P99MS, result.RequestsPerSecond)
 	}
 	raw, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
@@ -188,23 +132,6 @@ func TestHTTPDatabasePerformance(t *testing.T) {
 	if err = os.WriteFile(output, append(raw, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
-}
-
-// An experimental service remains test-only until HTTP measurements justify
-// changing the actual service. It preserves the endpoint and exact predicates.
-type overviewCandidate struct {
-	*admin.Service
-	pool *pgxpool.Pool
-}
-
-func (s overviewCandidate) Overview(ctx context.Context) (map[string]any, error) {
-	now := time.Now().UTC().Truncate(time.Millisecond)
-	var members, recent, messages, newMessages, active int64
-	err := s.pool.QueryRow(ctx, `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">$2) FROM (SELECT count(*) total,count(*) FILTER (WHERE "createdAt">=$1) recent FROM "User" WHERE role='MEMBER') members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`, now.Add(-7*24*time.Hour), now).Scan(&members, &recent, &messages, &newMessages, &active)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"members": map[string]any{"total": members, "newLast7Days": recent}, "messages": map[string]any{"total": messages, "new": newMessages}, "sessions": map[string]any{"active": active}}, nil
 }
 
 func seed(t *testing.T, ctx context.Context, p *pgxpool.Pool) {
@@ -302,18 +229,17 @@ func measure(t *testing.T, base, path, token string, p *pgxpool.Pool) endpoint {
 func capturePlans(t *testing.T, ctx context.Context, p *pgxpool.Pool, out map[string][]string) {
 	t.Helper()
 	plans := map[string]string{
-		"authSession":                 `SELECT "userId","expiresAt","revokedAt" FROM "AuthSession" WHERE id=md5('session-1')::uuid`,
-		"authUser":                    `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE id=1`,
-		"usersFirst":                  `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
-		"usersDeep":                   `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20 OFFSET 9980`,
-		"usersCount":                  `SELECT count(*) FROM "User"`,
-		"usersSearch":                 `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%' ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
-		"usersSearchCount":            `SELECT count(*) FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%'`,
-		"overview":                    `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now()) FROM (SELECT count(*) total,count(*) FILTER (WHERE "createdAt">=now()-interval '7 days') recent FROM "User" WHERE role='MEMBER') members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`,
-		"candidateOverviewSinglePass": `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now()) FROM (SELECT count(*) total,count(*) FILTER (WHERE "createdAt">=now()-interval '7 days') recent FROM "User" WHERE role='MEMBER') members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`,
-		"messages":                    `SELECT id,name,phone,email,subject,status,"createdAt","updatedAt" FROM "ContactMessage" WHERE status='NEW' ORDER BY "createdAt" DESC LIMIT 20`,
-		"audit":                       `SELECT id,"actorUserId",action,"targetType","targetId",outcome,"requestId","createdAt" FROM "AdminAuditEvent" WHERE action='CONTACT_MESSAGE_STATUS_CHANGED' ORDER BY "createdAt" DESC LIMIT 20`,
-		"security":                    `SELECT id,"eventType",outcome,"actorUserId","requestId",route,"statusCode","createdAt" FROM "SecurityEvent" WHERE "eventType"='ADMIN_LOGIN' ORDER BY "createdAt" DESC LIMIT 20`,
+		"authSession":      `SELECT "userId","expiresAt","revokedAt" FROM "AuthSession" WHERE id=md5('session-1')::uuid`,
+		"authUser":         `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE id=1`,
+		"usersFirst":       `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
+		"usersDeep":        `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" ORDER BY "createdAt" DESC,id DESC LIMIT 20 OFFSET 9980`,
+		"usersCount":       `SELECT count(*) FROM "User"`,
+		"usersSearch":      `SELECT id,phone,"firstName","lastName",role,"birthYear","birthMonth","birthDay","createdAt","updatedAt" FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%' ORDER BY "createdAt" DESC,id DESC LIMIT 20`,
+		"usersSearchCount": `SELECT count(*) FROM "User" WHERE phone LIKE '%Needle%' OR "firstName" ILIKE '%Needle%' OR "lastName" ILIKE '%Needle%'`,
+		"overview":         `SELECT members.total,members.recent,messages.total,messages.new,(SELECT count(*) FROM "AuthSession" WHERE "revokedAt" IS NULL AND "expiresAt">now()) FROM (SELECT count(*) total,count(*) FILTER (WHERE "createdAt">=now()-interval '7 days') recent FROM "User" WHERE role='MEMBER') members CROSS JOIN (SELECT count(*) total,count(*) FILTER (WHERE status='NEW') new FROM "ContactMessage") messages`,
+		"messages":         `SELECT id,name,phone,email,subject,status,"createdAt","updatedAt" FROM "ContactMessage" WHERE status='NEW' ORDER BY "createdAt" DESC LIMIT 20`,
+		"audit":            `SELECT id,"actorUserId",action,"targetType","targetId",outcome,"requestId","createdAt" FROM "AdminAuditEvent" WHERE action='CONTACT_MESSAGE_STATUS_CHANGED' ORDER BY "createdAt" DESC LIMIT 20`,
+		"security":         `SELECT id,"eventType",outcome,"actorUserId","requestId",route,"statusCode","createdAt" FROM "SecurityEvent" WHERE "eventType"='ADMIN_LOGIN' ORDER BY "createdAt" DESC LIMIT 20`,
 	}
 	for name, sql := range plans {
 		// Runtime Overview binds one millisecond UTC timestamp. Use a timestamp
@@ -343,86 +269,4 @@ func explain(t *testing.T, ctx context.Context, query func(context.Context, stri
 		t.Fatal(err)
 	}
 	return lines
-}
-
-func trigramCandidate(t *testing.T, ctx context.Context, p *pgxpool.Pool, data *evidence) {
-	t.Helper()
-	var available, superuser bool
-	if err := p.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_available_extensions WHERE name='pg_trgm'),(SELECT rolsuper FROM pg_roles WHERE rolname=current_user)`).Scan(&available, &superuser); err != nil {
-		t.Fatal(err)
-	}
-	data.Candidate = map[string]any{"extensionAvailable": available, "installerSuperuser": superuser}
-	if !available || superuser {
-		t.Fatal("trigram trial requires available extension and owned non-superuser")
-	}
-	writeProbe := func(name string) {
-		tx, err := p.Begin(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = tx.Rollback(cleanup)
-		}()
-		data.Plans[name] = explain(t, ctx, tx.Query, `EXPLAIN (ANALYZE, BUFFERS, WAL) INSERT INTO "User" (id,phone,"firstName","lastName","createdAt","updatedAt") SELECT 100000+i,'09'||lpad((100000+i)::text,9,'0'),'WriteProbe','Example',now(),now() FROM generate_series(1,1000) i`)
-		if err = tx.Rollback(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if _, err = p.Exec(ctx, `VACUUM (ANALYZE) "User"`); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeProbe("userWriteBeforeTrigram")
-	begin := time.Now()
-	if _, err := p.Exec(ctx, `CREATE EXTENSION pg_trgm; CREATE INDEX "User_search_trgm_idx" ON "User" USING GIN (phone gin_trgm_ops,"firstName" gin_trgm_ops,"lastName" gin_trgm_ops)`); err != nil {
-		t.Fatal("owned trigram build failed", err)
-	}
-	data.Candidate["extensionAndIndexBuildMs"] = float64(time.Since(begin)) / float64(time.Millisecond)
-	var ginBytes, btreeBytes int64
-	if err := p.QueryRow(ctx, `SELECT pg_relation_size('"User_search_trgm_idx"'),pg_relation_size('"User_createdAt_id_idx"')`).Scan(&ginBytes, &btreeBytes); err != nil {
-		t.Fatal(err)
-	}
-	data.Candidate["trigramIndexBytes"] = ginBytes
-	data.Candidate["orderingIndexBytes"] = btreeBytes
-	writeProbe("userWriteWithTrigram")
-	after := map[string][]string{}
-	capturePlans(t, ctx, p, after)
-	for _, key := range []string{"usersSearch", "usersSearchCount"} {
-		data.Plans["trigram"+key] = after[key]
-	}
-	var count int64
-	if err := p.QueryRow(ctx, `SELECT count(*) FROM "User"`).Scan(&count); err != nil || count != 100000 {
-		t.Fatal("write probes changed seeded population")
-	}
-}
-
-func startNode(t *testing.T, ctx context.Context, p *pgxpool.Pool) string {
-	t.Helper()
-	cfg := p.Config().ConnConfig
-	target := (&url.URL{Scheme: "postgresql", Host: cfg.Host + ":" + strconv.Itoa(int(cfg.Port)), Path: "/" + cfg.Database, User: url.UserPassword(cfg.User, cfg.Password), RawQuery: "sslmode=disable"}).String()
-	_, source, _, _ := runtime.Caller(0)
-	cmd := exec.CommandContext(ctx, "node", "scripts/performance-reference.cjs")
-	cmd.Dir = filepath.Join(filepath.Dir(source), "..", "..", "..", "backend")
-	cmd.Env = append(os.Environ(), "PERFORMANCE_DATABASE_URL="+target, "PERFORMANCE_CONFIRM=read:"+cfg.Database, "ALLOW_MIGRATION_PERFORMANCE=1")
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Helper emits only a fixed sanitized error; no database URI or tokens.
-	cmd.Stderr = os.Stderr
-	if err = cmd.Start(); err != nil {
-		t.Fatal("Node reference start failed")
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	scanner := bufio.NewScanner(stdout)
-	if !scanner.Scan() {
-		t.Fatal("Node reference did not become ready")
-	}
-	base := scanner.Text()
-	parsed, err := url.Parse(base)
-	if err != nil || parsed.Scheme != "http" || parsed.Hostname() != "127.0.0.1" || parsed.Port() == "" {
-		t.Fatal("invalid Node loopback listener")
-	}
-	return base
 }

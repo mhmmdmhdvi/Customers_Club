@@ -12,6 +12,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-postgres.ps1 -A
 Push-Location backend-go
 go test ./internal/testdb -count=1 -v
 go test ./... -count=1
+go run ./cmd/testdb-audit
 Pop-Location
 ```
 
@@ -34,10 +35,10 @@ host (`127.0.0.1` or `::1`), a nondefault port, and a PostgreSQL URI with only
 
 `Open` validates the actual current database, current/session user, owner, and
 both comments; creates a unique `mig_test_<cluster ID>_<32 random hex>` database;
-verifies the actual child identity; and applies every existing Prisma
-`migration.sql` in sorted order in one transaction. It does not alter Prisma
-migration history or add fake `_prisma_migrations` records. `OpenEmpty` allocates
-the same guarded empty database for historical migration rehearsals. Each call
+verifies the actual child identity; and applies the embedded checksummed SQL via
+`migrate.Apply`. Its `public.go_migrations` ledger validates an immutable prefix
+and each migration commits transactionally. `OpenEmpty` allocates the same
+guarded empty database for native runner integrity/rollback/concurrency tests. Each call
 registers cleanup; DROP requires its exact unique name, owner, and nonce marker.
 No development or ordinary test database names are accepted.
 
@@ -60,7 +61,7 @@ Remove-Item Env:ALLOW_MIGRATION_TEST_DATABASE -ErrorAction SilentlyContinue
 `-InstanceName <name>` selects a separate owned cluster directory/environment
 under the same ignored scratch root; the default `postgres` preserves the paths
 above. `-StartupControllerTimeoutSeconds` bounds the controller wait (default
-35, range 1–60). A failed or timed-out startup is tracked before spawning, then
+35, range 1â€“60). A failed or timed-out startup is tracked before spawning, then
 shutdown is attempted only after checking its exact generated path and marker.
 
 The opted-in Windows Go suite includes `TestNativeFailedStartupStopsItsOwnedChild`.
@@ -69,3 +70,11 @@ fixture that starts a real PostgreSQL child in separate named owned namespaces,
 then exits nonzero or times out. Both cases require a ready child, stopped PID,
 and no published environment file. It never stops the default shared cluster.
 It retains diagnostic directories and safely stops any RED orphan it created.
+
+`go run ./cmd/testdb-audit` reuses the same URL and actual identity/ownership
+guards. It is read-only, refuses superusers/role creators/default port, and
+requires zero owned children and zero public parent tables. Run it only when
+owned tests have finished. Native tests do not need Node/npm or a schema checkout
+outside the Go module. When deriving a child URI use actual current pgx fields;
+`Config.ConnString()` retains the original parsed parent string after changing
+`Database` and must not be used for that purpose.

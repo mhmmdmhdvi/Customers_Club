@@ -69,7 +69,7 @@ club/
 |   |   `-- main.jsx
 |   |-- index.html
 |   `-- package.json
-|-- backend/                 # Added in a later milestone
+|-- backend-go/              # Native Go API and tools
 |-- docker/                  # Added when containerization begins
 |-- docs/
 `-- README.md

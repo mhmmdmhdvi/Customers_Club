@@ -5,18 +5,14 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"reflect"
-	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/testdb"
 )
 
-func TestRealPrismaAdminReadParity(t *testing.T) {
+func TestCapturedAdminReadContracts(t *testing.T) {
 	p := testdb.Open(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -41,20 +37,16 @@ func TestRealPrismaAdminReadParity(t *testing.T) {
 		}
 	}
 	queries = append(queries, query{"messages", map[string]string{"status": "RESOLVED", "subject": "COMPLAINT"}}, query{"audit", map[string]string{"actorUserId": "2", "action": "CONTACT_MESSAGE_STATUS_CHANGED", "targetType": "CONTACT_MESSAGE", "outcome": "SUCCESS"}}, query{"security", map[string]string{"eventType": "ADMIN_LOGIN", "actorUserId": "2", "requestId": "request-1", "statusCode": "200", "outcome": "SUCCESS"}})
-	raw, _ := json.Marshal(queries)
-	cfg := p.Config().ConnConfig
-	target := (&url.URL{Scheme: "postgresql", Host: cfg.Host + ":" + strconv.Itoa(int(cfg.Port)), Path: "/" + cfg.Database, User: url.UserPassword(cfg.User, cfg.Password), RawQuery: "sslmode=disable"}).String()
-	_, source, _, _ := runtime.Caller(0)
-	cmd := exec.CommandContext(ctx, "node", "tests/helpers/admin-database-reference.js")
-	cmd.Dir = filepath.Join(filepath.Dir(source), "..", "..", "..", "backend")
-	cmd.Env = append(os.Environ(), "ADMIN_REFERENCE_DATABASE_URL="+target, "ADMIN_REFERENCE_CONFIRM=read:"+cfg.Database, "ADMIN_REFERENCE_QUERIES="+string(raw))
-	output, e := cmd.Output()
+	output, e := os.ReadFile("testdata/admin-read-node.json")
 	if e != nil {
-		t.Fatal("sanitized Node admin reference failure", e)
+		t.Fatal(e)
 	}
 	var want []any
 	if e = json.Unmarshal(output, &want); e != nil {
 		t.Fatal("reference output malformed")
+	}
+	if len(want) != 29 || len(queries) != len(want) {
+		t.Fatal("incomplete admin reference")
 	}
 	s := New(p)
 	for i, q := range queries {

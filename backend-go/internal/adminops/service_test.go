@@ -3,6 +3,7 @@ package adminops_test
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -64,6 +65,35 @@ func TestPromotionRevokesMemberSessionsAndChallenges(t *testing.T) {
 	}
 	if _, e = s.Promote(ctx, "09120000001"); e == nil {
 		t.Fatal("duplicate promotion accepted")
+	}
+}
+
+func TestLookupFailureIsSanitizedAndDistinctFromMissingUser(t *testing.T) {
+	p, s, _, _ := setup(t)
+	if _, e := p.Exec(context.Background(), `ALTER TABLE "User" RENAME TO "UserUnavailable"`); e != nil {
+		t.Fatal(e)
+	}
+	_, e := s.Promote(context.Background(), "09120000001")
+	if e == nil || e.Error() != "target user lookup failed" || strings.Contains(e.Error(), "UserUnavailable") {
+		t.Fatalf("lookup failure misclassified or exposed: %v", e)
+	}
+}
+
+func TestCanceledLockedLookupRetainsCancellation(t *testing.T) {
+	p, s, _, id := setup(t)
+	tx, e := p.Begin(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer tx.Rollback(context.Background())
+	if _, e = tx.Exec(context.Background(), `SELECT id FROM "User" WHERE id=$1 FOR UPDATE`, id); e != nil {
+		t.Fatal(e)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	_, e = s.Promote(ctx, "09120000001")
+	if e == nil || e.Error() != "target user lookup failed" || !errors.Is(e, context.DeadlineExceeded) {
+		t.Fatalf("canceled lookup misclassified: %v", e)
 	}
 }
 func TestEnrollAndResetEncryptedTOTP(t *testing.T) {

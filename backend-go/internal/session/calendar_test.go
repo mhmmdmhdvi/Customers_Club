@@ -2,21 +2,22 @@ package session
 
 import (
 	"encoding/json"
-	"os/exec"
+	"os"
 	"testing"
 	"time"
 )
 
-func TestCalendarInteroperatesWithInstalledJalaaliJS(t *testing.T) {
-	cmd := exec.Command("node", "-e", `const j=require('jalaali-js');const out=[];for(let y=-61;y<=3177;y++){const r=j.jalCal(y);out.push([y,r.march,r.leap])}console.log(JSON.stringify(out));`)
-	cmd.Dir = "../../../backend"
-	out, e := cmd.Output()
+func TestCapturedJalaaliCalendarFullSupportedRange(t *testing.T) {
+	out, e := os.ReadFile("testdata/jalaali-node.json")
 	if e != nil {
 		t.Fatal(e)
 	}
 	var years [][3]int
 	if e = json.Unmarshal(out, &years); e != nil {
 		t.Fatal(e)
+	}
+	if len(years) != 3239 || years[0][0] != -61 || years[len(years)-1][0] != 3177 {
+		t.Fatal("incomplete calendar reference")
 	}
 	for _, r := range years {
 		march, leap := calendar(r[0])

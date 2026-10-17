@@ -1,3 +1,9 @@
+x-api-image: &api-image
+  image: customers-club-api:local
+  build:
+    context: .
+    dockerfile: backend-go/Dockerfile
+
 services:
   db:
     image: postgres:18-alpine
@@ -17,18 +23,16 @@ services:
       timeout: 3s
       retries: 20
   migrate:
-    build:
-      context: .
-      dockerfile: deployment/migrations.Dockerfile
+    <<: *api-image
+    command: [migrate]
+    healthcheck: {disable: true}
     secrets: [app_db_password]
     networks: [database]
     depends_on:
       db: {condition: service_healthy}
     restart: "no"
   api:
-    build:
-      context: .
-      dockerfile: backend-go/Dockerfile
+    <<: *api-image
     env_file: ./deployment/api.env
     environment:
       NODE_ENV: development

@@ -130,3 +130,28 @@ func assertRemoved(t *testing.T, ctx context.Context, parent *pgxpool.Pool, name
 		t.Fatal("owned database not cleaned up")
 	}
 }
+
+func TestCleanupRefusesUnexpectedLiveClient(t *testing.T) {
+	child := OpenEmpty(t)
+	cfg, err := targetConfig(testURL(), testOptIn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal("parent connection failed")
+	}
+	defer parent.Close()
+	var name, marker string
+	if err = child.QueryRow(context.Background(), `SELECT current_database(),shobj_description(oid,'pg_database') FROM pg_database WHERE datname=current_database()`).Scan(&name, &marker); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err = dropOwned(ctx, parent, name, cfg.ConnConfig.User, marker); err == nil {
+		t.Fatal("cleanup forcibly terminated a live child client")
+	}
+	if err = child.Ping(context.Background()); err != nil {
+		t.Fatal("cleanup disconnected the live child")
+	}
+}

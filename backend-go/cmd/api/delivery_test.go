@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/pem"
+	"crypto/tls"
+	"crypto/x509"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +44,7 @@ func TestInitializedReadinessTracksDatabaseWhileHealthRemainsLive(t *testing.T) 
 	check("/health", 200)
 }
 
-// Runs the operational smoke tool against the actual Go runtime and compiled SPA
+// Runs native HTTPS checks against the actual Go runtime and compiled SPA
 // through a native TLS prefix proxy. Container/nginx execution remains a CI check.
 func TestOperationalHTTPSProxySmoke(t *testing.T) {
 	pool := testdb.Open(t)
@@ -82,17 +84,65 @@ func TestOperationalHTTPSProxySmoke(t *testing.T) {
 	}
 	t.Cleanup(cleanup)
 	server.StartTLS()
-	cert := filepath.Join(t.TempDir(), "smoke-ca.pem")
-	if err := os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
+	ca := x509.NewCertPool()
+	ca.AddCert(server.Certificate())
+	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: ca, MinVersion: tls.VersionTLS12}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	get := func(path, contentType string) string {
+		t.Helper()
+		response, err := client.Get(server.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil || response.StatusCode != 200 || !strings.Contains(response.Header.Get("Content-Type"), contentType) {
+			t.Fatalf("HTTPS %s: status=%d err=%v", path, response.StatusCode, err)
+		}
+		return string(body)
+	}
+	for _, path := range []string{"/", "/admin", "/login"} {
+		html := get(path, "text/html")
+		if !strings.Contains(html, `<div id="root">`) {
+			t.Fatalf("SPA missing at %s", path)
+		}
+		if path == "/" {
+			match := regexp.MustCompile(`<script\b[^>]*\bsrc="([^"]+)"`).FindStringSubmatch(html)
+			if len(match) != 2 {
+				t.Fatal("built SPA script missing")
+			}
+			asset := get(match[1], "javascript")
+			if !regexp.MustCompile("[\"'`]/api[\"'`]").MatchString(asset) {
+				t.Fatal("SPA must use same-site /api")
+			}
+		}
+	}
+	for _, path := range []string{"/api/health", "/api/ready"} {
+		get(path, "application/json")
+	}
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/logout", strings.NewReader("{}"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	command := exec.CommandContext(ctx, "node", "-e", `require(process.argv[1]).smoke(process.argv[2]).catch(error=>{console.error(error.message);process.exitCode=1;})`, filepath.Join(root, "scripts", "smoke.cjs"), server.URL)
-	command.Env = append(os.Environ(), "NODE_EXTRA_CA_CERTS="+cert)
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("operational smoke: %v: %s", err, output)
-	} else {
-		t.Log(string(output))
+	request.Header.Set("Origin", server.URL)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-CSRF-Protection", "1")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer response.Body.Close()
+	if response.StatusCode != 204 {
+		t.Fatalf("HTTPS logout: %d", response.StatusCode)
+	}
+	cookies := response.Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("logout cookies: %d", len(cookies))
+	}
+	cookie := cookies[0]
+	if cookie.Name != "__Host-club_refresh" || !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/" || cookie.Domain != "" {
+		t.Fatalf("cookie policy: %+v", cookie)
+	}
+	t.Log("Native HTTPS passed: trusted CA, SPA reloads, /api stripping, readiness and Secure cookie policy")
 }

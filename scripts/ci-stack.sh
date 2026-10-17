@@ -22,7 +22,8 @@ trap '"${compose[@]}" down --volumes --remove-orphans' EXIT
 # Database provisioning must create an ordinary owner, never the image superuser.
 identity=$("${compose[@]}" exec -T db psql -U club_bootstrap -d customer_club_db -X -At -v ON_ERROR_STOP=1 -c "SELECT r.rolname,r.rolsuper,r.rolcreatedb,r.rolcreaterole,pg_get_userbyid(d.datdba) FROM pg_database d JOIN pg_roles r ON r.rolname='customer_club_user' WHERE d.datname='customer_club_db'")
 [ "$identity" = 'customer_club_user|f|f|f|customer_club_user' ]
-unfinished=$("${compose[@]}" exec -T db psql -U club_bootstrap -d customer_club_db -X -At -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NULL AND rolled_back_at IS NULL')
-[ "$unfinished" = 0 ]
-NODE_EXTRA_CA_CERTS="$PWD/deployment/tls/fullchain.pem" node scripts/smoke.cjs "$CLUB_ORIGIN"
+migrations=$("${compose[@]}" exec -T db psql -U club_bootstrap -d customer_club_db -X -At -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.go_migrations WHERE length(checksum)=64')
+[ "$migrations" = 14 ]
+"${compose[@]}" run --rm migrate
+NODE_EXTRA_CA_CERTS="$PWD/deployment/tls/fullchain.pem" node frontend/scripts/smoke.cjs "$CLUB_ORIGIN"
 echo 'Fresh production stack owner privileges, migration and HTTPS smoke verified.'

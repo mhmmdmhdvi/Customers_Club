@@ -1,18 +1,18 @@
 package adminmfa
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
 	"encoding/json"
-	"os/exec"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestNodeCiphertextAndTOTPInterop(t *testing.T) {
-	script := `const c=require('./src/security/admin-mfa-crypto').createAdminMfaCrypto(Buffer.alloc(32,109)); const t=require('./src/security/totp'); console.log(JSON.stringify({encrypted:c.encrypt('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'),code:t.generateTotp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',{timeMs:59000})}));`
-	cmd := exec.Command("node", "-e", script)
-	cmd.Dir = "../../../backend"
-	out, e := cmd.Output()
+func TestCapturedCiphertextAndTOTPInterop(t *testing.T) {
+	out, e := os.ReadFile("testdata/crypto-node.json")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -39,13 +39,21 @@ func TestNodeCiphertextAndTOTPInterop(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	raw, _ := json.Marshal(enc)
-	script = `const c=require('./src/security/admin-mfa-crypto').createAdminMfaCrypto(Buffer.alloc(32,109));process.stdout.write(c.decrypt(JSON.parse(process.argv[1])));`
-	cmd = exec.Command("node", "-e", script, string(raw))
-	cmd.Dir = "../../../backend"
-	out, e = cmd.Output()
+	// Independently open Go-generated storage with the standard AES-GCM API.
+	block, e := aes.NewCipher([]byte(strings.Repeat("m", 32)))
+	if e != nil {
+		t.Fatal(e)
+	}
+	aead, e := cipher.NewGCM(block)
+	if e != nil {
+		t.Fatal(e)
+	}
+	iv, _ := base64.RawURLEncoding.DecodeString(enc.IV)
+	ct, _ := base64.RawURLEncoding.DecodeString(enc.Ciphertext)
+	tag, _ := base64.RawURLEncoding.DecodeString(enc.Tag)
+	out, e = aead.Open(nil, iv, append(ct, tag...), nil)
 	if e != nil || string(out) != secret {
-		t.Fatal("Node decrypt", e)
+		t.Fatal("AES-GCM storage", e)
 	}
 	enc.Tag = strings.Repeat("A", 22)
 	if _, e = c.Decrypt(enc); e == nil {

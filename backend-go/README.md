@@ -1,8 +1,8 @@
 # Go API
 
-Requires Go 1.27.1 and an explicitly provisioned PostgreSQL database with the checked-in Prisma migrations. Build `go build ./cmd/api`, then run `api` with injected environment variables matching [.env.example](.env.example). The binary deliberately does not read `.env`. Startup validates database, JWT/OTP secrets, issuer/audience, allowed origins, MFA key, FarazSMS credentials and trusted proxy addresses before listening. `NODE_ENV=production` requires HTTPS origins and issues `__Host-club_refresh` cookies with Secure, HttpOnly, Path=/ and SameSite=Strict. Development cookies use `club_refresh`. Access TTL is900 seconds, member absolute session expiry7 days, admin expiry8 hours.
+Requires Go 1.27.1 and a fresh PostgreSQL database. Build `go build ./cmd/...`, apply the embedded SQL with `go run ./cmd/migrate`, then run `go run ./cmd/api` with injected environment variables matching [.env.example](.env.example). The binary deliberately does not read `.env`. Startup validates database, JWT/OTP secrets, issuer/audience, allowed origins, MFA key, FarazSMS credentials and trusted proxy addresses before listening. `NODE_ENV=production` requires HTTPS origins and issues `__Host-club_refresh` cookies with Secure, HttpOnly, Path=/ and SameSite=Strict. Development cookies use `club_refresh`. Access TTL is900 seconds, member absolute session expiry7 days, admin expiry8 hours.
 
-Routes retain Node paths; the supplied browser deployment adds `/api` and strips it at nginx:
+API routes; the supplied browser deployment adds `/api` and strips it at nginx:
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -33,4 +33,24 @@ Session mutations and admin PATCH require JSON and `X-CSRF-Protection:1`, plus a
 
 SIGINT/SIGTERM stops accepts and drains HTTP for up to 10 seconds before closing the pgx pool. The container has15s grace. `/ready` checks database connectivity and required core schema; it does not probe or send SMS. Runtime migration is separate from API startup.
 
-For offline checks run `go test ./... -count=1`, `go vet ./...`, and `go build ./cmd/api`. For actual database/concurrency/contracts/history checks load the [owned harness](internal/testdb/README.md) first. All child databases have unique markers and constrained cleanup. Linux CI additionally runs `go test -race ./...`; local Windows CGO/compiler absence prevents race execution. Existing Node MFA tools use compatible encrypted secrets and TOTP counters; see [deployment](../docs/deployment.md) for their guarded identities and operator procedure.
+For offline checks run `go test ./... -count=1`, `go vet ./...`, and
+`go build ./cmd/...`. The backend suite requires neither Node nor npm. For real
+database/concurrency/contracts/migration checks load the [owned harness](internal/testdb/README.md)
+first. Linux CI additionally runs `go test -race ./...`.
+
+Native tools never read `.env`. Inject `DATABASE_URL` for migration/promotion;
+enrollment/reset also need the same 64-hex `ADMIN_MFA_ENCRYPTION_KEY` used by API:
+
+```text
+go run ./cmd/migrate
+go run ./cmd/admin promote <phone>
+go run ./cmd/admin mfa-enroll <phone>
+go run ./cmd/admin mfa-reset <phone>
+```
+
+Promotion selects an existing member. Enrollment requires an existing ADMIN
+without a credential; reset requires an enrolled ADMIN. Each operation revokes
+prior sessions/challenges and records a security event transactionally. Only
+explicit enrollment/reset prints a new secret and authenticator URI; keep that
+output private. See [deployment](../docs/deployment.md) for target selection and
+migration refusal rules.

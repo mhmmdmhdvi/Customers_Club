@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/adminmfa"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/events"
@@ -24,6 +25,12 @@ type Enrollment struct {
 	Secret string `json:"secret,omitempty"`
 	URI    string `json:"uri,omitempty"`
 }
+
+// Preserve error classification for callers without exposing driver details.
+type lookupError struct{ cause error }
+
+func (e lookupError) Error() string { return "target user lookup failed" }
+func (e lookupError) Unwrap() error { return e.cause }
 
 func New(p *pgxpool.Pool, c *adminmfa.Crypto) *Service { return &Service{p, c} }
 func (s *Service) Promote(ctx context.Context, rawPhone string) (int64, error) {
@@ -50,7 +57,10 @@ func (s *Service) apply(ctx context.Context, rawPhone, operation string) (Enroll
 	var id int64
 	var role string
 	if e = tx.QueryRow(ctx, `SELECT id,role FROM "User" WHERE phone=$1 FOR UPDATE`, number).Scan(&id, &role); e != nil {
-		return Enrollment{}, errors.New("target user not found")
+		if errors.Is(e, pgx.ErrNoRows) {
+			return Enrollment{}, errors.New("target user not found")
+		}
+		return Enrollment{}, lookupError{e}
 	}
 	result := Enrollment{UserID: id}
 	eventType := "ADMIN_PROMOTED"
