@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 	"golang.org/x/text/unicode/norm"
@@ -181,6 +182,19 @@ type Service struct{ pool *pgxpool.Pool }
 
 func New(p *pgxpool.Pool) *Service { return &Service{p} }
 func (s *Service) Record(ctx context.Context, v Security) error {
+	return record(ctx, s.pool, v)
+}
+
+// RecordTx keeps an operator mutation and its security event atomic.
+func RecordTx(ctx context.Context, tx pgx.Tx, v Security) error {
+	return record(ctx, tx, v)
+}
+
+type executor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func record(ctx context.Context, db executor, v Security) error {
 	var e error
 	v.EventType, e = Text(v.EventType, "event type", 80)
 	if e != nil {
@@ -210,7 +224,7 @@ func (s *Service) Record(ctx context.Context, v Security) error {
 	if e != nil {
 		return e
 	}
-	_, e = s.pool.Exec(ctx, `INSERT INTO "SecurityEvent" ("eventType",outcome,"actorUserId","requestId",route,"statusCode",details) VALUES ($1,$2,$3,$4,$5,$6,$7)`, v.EventType, v.Outcome, v.ActorUserID, request, v.Route, v.StatusCode, d)
+	_, e = db.Exec(ctx, `INSERT INTO "SecurityEvent" ("eventType",outcome,"actorUserId","requestId",route,"statusCode",details) VALUES ($1,$2,$3,$4,$5,$6,$7)`, v.EventType, v.Outcome, v.ActorUserID, request, v.Route, v.StatusCode, d)
 	return e
 }
 
