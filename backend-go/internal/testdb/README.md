@@ -61,7 +61,7 @@ Remove-Item Env:ALLOW_MIGRATION_TEST_DATABASE -ErrorAction SilentlyContinue
 `-InstanceName <name>` selects a separate owned cluster directory/environment
 under the same ignored scratch root; the default `postgres` preserves the paths
 above. `-StartupControllerTimeoutSeconds` bounds the controller wait (default
-35, range 1â€“60). A failed or timed-out startup is tracked before spawning, then
+35, range 1-60). A failed or timed-out startup is tracked before spawning, then
 shutdown is attempted only after checking its exact generated path and marker.
 
 The opted-in Windows Go suite includes `TestNativeFailedStartupStopsItsOwnedChild`.
