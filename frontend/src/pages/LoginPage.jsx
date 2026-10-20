@@ -1,5 +1,8 @@
+import { credentialRequest } from "../auth/refreshSession";
+import { API_BASE_URL, boundedFetch } from "../auth/request";
 import {
     useEffect,
+    useRef,
     useState,
 } from "react";
 import { useAuth } from "../auth/AuthContext";
@@ -9,8 +12,7 @@ import { BirthdayDatePicker } from "../components/ui/BirthdayDatePicker";
 import { SixDigitCodeInput } from "../components/ui/SixDigitCodeInput";
 import { useToast } from "../components/ui/ToastContext";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+
 
 export function LoginPage({
     onAuthenticated = () => { },
@@ -37,8 +39,28 @@ export function LoginPage({
         session,
         authStatus,
         establishSession,
+        captureSession,
         clearSession,
+        logout,
     } = useAuth();
+    const pageGeneration = useRef(0);
+    const pageRequests = useRef(new Set());
+    useEffect(() => {
+        const requests = pageRequests.current;
+        const invalidatePage = () => { pageGeneration.current++; };
+        return () => { invalidatePage(); requests.forEach(controller => controller.abort()); };
+    }, []);
+    function captureGrant() {
+        const started = pageGeneration.current;
+        const apply = captureSession?.() ?? establishSession;
+        const isCurrent = () => started === pageGeneration.current && (apply.isCurrent?.() ?? true);
+        const grantSession = grant => {
+            if (!isCurrent()) return false;
+            return apply(grant) !== false;
+        };
+        grantSession.isCurrent = isCurrent;
+        return grantSession;
+    }
     const [pendingWebOtpCode, setPendingWebOtpCode] =
         useState("");
 
@@ -116,37 +138,6 @@ export function LoginPage({
         session,
     ]);
 
-    useEffect(() => {
-        if (
-            !pendingWebOtpCode ||
-            isRequestingCode ||
-            !autoVerifyEnabled ||
-            isLoading ||
-            step !== "code" ||
-            verification ||
-            session
-        ) {
-            return;
-        }
-
-        const receivedCode =
-            pendingWebOtpCode;
-
-        setPendingWebOtpCode("");
-        setAutoVerifyEnabled(false);
-
-        void verifySmsCode(
-            receivedCode,
-        );
-    }, [
-        pendingWebOtpCode,
-        isRequestingCode,
-        autoVerifyEnabled,
-        isLoading,
-        step,
-        verification,
-        session,
-    ]);
 
     async function handleResendCode() {
         if (
@@ -161,7 +152,7 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/request-code`,
                 {
                     method: "POST",
@@ -222,7 +213,7 @@ export function LoginPage({
         setIsRequestingCode(true);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/request-code`,
                 {
                     method: "POST",
@@ -266,6 +257,44 @@ export function LoginPage({
         }
     }
 
+    async function loginWithProof(verificationToken, signal) {
+        const response = await credentialRequest(
+                `${API_BASE_URL}/auth/login`,
+            {
+                signal,
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Protection": "1",
+                },
+                body: JSON.stringify({ verificationToken }),
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error("Login request failed");
+        }
+
+        const data = await response.json();
+
+        if (
+            data?.authenticated === false &&
+            data?.mfaRequired === true &&
+            typeof data?.mfaChallengeToken === "string" &&
+            /^[a-f0-9]{64}$/.test(data.mfaChallengeToken) &&
+            Number.isFinite(Date.parse(data?.mfaExpiresAt))
+        ) {
+            return {
+                mfaRequired: true,
+                mfaChallengeToken: data.mfaChallengeToken,
+                mfaExpiresAt: data.mfaExpiresAt,
+            };
+        }
+
+        return parseAuthenticatedSession(data);
+    }
+
     async function verifySmsCode(rawCode) {
         if (
             isLoading ||
@@ -284,11 +313,18 @@ export function LoginPage({
         }
 
         setIsLoading(true);
+        // Capture both page and provider identity before verification begins.
+        // A late proof must never initiate a new cookie exchange after unmount.
+        const applyGrant = captureGrant();
+        const pageStarted = pageGeneration.current;
+        const controller = new AbortController();
+        pageRequests.current.add(controller);
 
         try {
-            const response = await fetch(
+            const response = await boundedFetch(
                 `${API_BASE_URL}/auth/verify-code`,
                 {
+                    signal: controller.signal,
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -300,7 +336,9 @@ export function LoginPage({
                 },
             );
 
+            if (!applyGrant.isCurrent()) return;
             const data = await response.json();
+            if (!applyGrant.isCurrent()) return;
 
             if (!response.ok) {
                 setError(
@@ -332,7 +370,9 @@ export function LoginPage({
                 try {
                     const loginResult = await loginWithProof(
                         data.verificationToken,
+                        controller.signal,
                     );
+                    if (!applyGrant.isCurrent()) return;
 
                     if (loginResult.mfaRequired === true) {
                         setMfaChallenge({
@@ -345,7 +385,7 @@ export function LoginPage({
                         return;
                     }
 
-                    establishSession(loginResult);
+                    if (!applyGrant(loginResult)) return;
 
                     toast.success(
                         "ورود با موفقیت انجام شد.",
@@ -354,6 +394,7 @@ export function LoginPage({
                     setVerification(null);
                     onAuthenticated();
                 } catch {
+                    if (!applyGrant.isCurrent()) return;
                     // Do not automatically repeat a single-use proof exchange.
                     setVerification(null);
                     setStep("phone");
@@ -373,17 +414,50 @@ export function LoginPage({
             setCode("");
             setAutoVerifyEnabled(false);
         } catch {
+            if (!applyGrant.isCurrent()) return;
             setError("تأیید کد انجام نشد. لطفاً دوباره تلاش کنید.");
         } finally {
-            setIsLoading(false);
+            pageRequests.current.delete(controller);
+            if (pageGeneration.current === pageStarted) setIsLoading(false);
         }
     }
 
-    function handleVerifyCode(event) {
-        event.preventDefault();
+    const verifySmsCodeRef = useRef(verifySmsCode);
+    useEffect(() => { verifySmsCodeRef.current = verifySmsCode; });
+    useEffect(() => {
+        if (
+            !pendingWebOtpCode ||
+            isRequestingCode ||
+            !autoVerifyEnabled ||
+            isLoading ||
+            step !== "code" ||
+            verification ||
+            session
+        ) {
+            return;
+        }
 
-        void verifySmsCode(code);
-    }
+        const receivedCode =
+            pendingWebOtpCode;
+
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled) return;
+            setPendingWebOtpCode("");
+            setAutoVerifyEnabled(false);
+            void verifySmsCodeRef.current(receivedCode);
+        });
+        return () => { cancelled = true; };
+    }, [
+        pendingWebOtpCode,
+        isRequestingCode,
+        autoVerifyEnabled,
+        isLoading,
+        step,
+        verification,
+        session,
+    ]);
+
 
     function handleCodeChange(nextCode) {
         setCode(nextCode);
@@ -455,7 +529,8 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const applyGrant = captureGrant();
+            const response = await credentialRequest(
                 `${API_BASE_URL}/auth/register`,
                 {
                     method: "POST",
@@ -499,7 +574,7 @@ export function LoginPage({
                 return;
             }
 
-            establishSession(nextSession);
+            if (!applyGrant(nextSession)) return;
 
             toast.success(
                 "عضویت شما با موفقیت انجام شد.",
@@ -517,42 +592,6 @@ export function LoginPage({
         }
     }
 
-    async function loginWithProof(verificationToken) {
-        const response = await fetch(
-            `${API_BASE_URL}/auth/login`,
-            {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-Protection": "1",
-                },
-                body: JSON.stringify({ verificationToken }),
-            },
-        );
-
-        if (!response.ok) {
-            throw new Error("Login request failed");
-        }
-
-        const data = await response.json();
-
-        if (
-            data?.authenticated === false &&
-            data?.mfaRequired === true &&
-            typeof data?.mfaChallengeToken === "string" &&
-            /^[a-f0-9]{64}$/.test(data.mfaChallengeToken) &&
-            Number.isFinite(Date.parse(data?.mfaExpiresAt))
-        ) {
-            return {
-                mfaRequired: true,
-                mfaChallengeToken: data.mfaChallengeToken,
-                mfaExpiresAt: data.mfaExpiresAt,
-            };
-        }
-
-        return parseAuthenticatedSession(data);
-    }
 
     async function handleCompleteMfa(event) {
         event.preventDefault();
@@ -574,7 +613,8 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const applyGrant = captureGrant();
+            const response = await credentialRequest(
                 `${API_BASE_URL}/auth/login/mfa`,
                 {
                     method: "POST",
@@ -615,9 +655,7 @@ export function LoginPage({
                     data,
                 );
 
-            establishSession(
-                nextSession,
-            );
+            if (!applyGrant(nextSession)) return;
 
             toast.success(
                 "ورود با موفقیت انجام شد.",
@@ -643,7 +681,7 @@ export function LoginPage({
         setIsLoading(true);
 
         try {
-            const response = await fetch(
+            const response = logout ? null : await credentialRequest(
                 `${API_BASE_URL}/auth/logout`,
                 {
                     method: "POST",
@@ -656,13 +694,14 @@ export function LoginPage({
                 },
             );
 
-            if (response.status !== 204) {
-                throw new Error("Logout was not confirmed");
+            if (logout) await logout();
+            else {
+                if (response.status !== 204) throw new Error("Logout was not confirmed");
+                clearSession({ confirmedLogout: true });
             }
 
             // Successful logout has no JSON response body.
             // Clear the session and reset the form.
-            clearSession();
             toast.success(
                 "با موفقیت از حساب خارج شدید.",
             );
@@ -748,6 +787,12 @@ export function LoginPage({
                                 ورود / عضویت
                             </h2>
                         </div>
+
+                        {authStatus === "error" && (
+                            <p role="alert" className="mt-4 text-sm leading-7 text-muted-foreground">
+                                تمدید ورود تأیید نشد. برای ادامه دوباره وارد شوید.
+                            </p>
+                        )}
 
                         {authStatus === "restoring" ? (
                             <div
@@ -993,8 +1038,8 @@ export function LoginPage({
                                         </h2>
 
                                         <p className="mt-4 text-lg font-semibold">
-                                            {session.user.firstName}{" "}
-                                            {session.user.lastName}
+                                            {session.user.firstName ?? "ثبت نشده"}{" "}
+                                            {session.user.lastName ?? "ثبت نشده"}
                                         </p>
 
                                         <p className="mt-3 text-sm leading-7 text-muted-foreground">

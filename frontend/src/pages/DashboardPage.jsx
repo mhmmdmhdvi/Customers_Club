@@ -49,11 +49,11 @@ export function DashboardPage({
     const rows = [
         {
             label: "نام",
-            value: session.user.firstName,
+            value: session.user.firstName ?? "ثبت نشده",
         },
         {
             label: "نام خانوادگی",
-            value: session.user.lastName,
+            value: session.user.lastName ?? "ثبت نشده",
         },
         {
             label: "شماره موبایل",

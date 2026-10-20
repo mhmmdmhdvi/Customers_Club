@@ -3,7 +3,8 @@ package phone
 import (
 	"regexp"
 	"strings"
-	"unicode"
+
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 )
 
 var iranianMobilePattern = regexp.MustCompile(`^09[0-9]{9}$`)
@@ -11,7 +12,7 @@ var iranianMobilePattern = regexp.MustCompile(`^09[0-9]{9}$`)
 func Normalize(value string) string {
 	normalized := strings.Map(
 		func(r rune) rune {
-			if unicode.IsSpace(r) || r == '-' {
+			if jsstring.IsSpace(r) || r == '-' {
 				return -1
 			}
 

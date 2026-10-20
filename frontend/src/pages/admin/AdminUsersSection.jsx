@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../../auth/request";
+import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     ShieldCheck,
     UserRound,
@@ -8,9 +10,7 @@ import {
 } from "react";
 import { formatPersianBirthday } from "../../utils/formatPersianDate";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 const PAGE_SIZE = 20;
 
@@ -40,6 +40,7 @@ function roleLabel(role) {
 export function AdminUsersSection({
     accessToken,
 }) {
+    const request = useAuthenticatedRequest(accessToken);
     const [result, setResult] =
         useState(null);
 
@@ -56,6 +57,7 @@ export function AdminUsersSection({
 
     useEffect(() => {
         let isCurrent = true;
+        const controller = new AbortController();
 
         const params =
             new URLSearchParams({
@@ -71,9 +73,10 @@ export function AdminUsersSection({
             );
         }
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/users?${params.toString()}`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${accessToken}`,
@@ -108,9 +111,11 @@ export function AdminUsersSection({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
     }, [
         accessToken,
+        request,
         page,
         search,
     ]);
@@ -315,8 +320,8 @@ export function AdminUsersSection({
 
                                             <div className="min-w-0">
                                                 <p className="truncate font-bold text-slate-800">
-                                                    {user.firstName}{" "}
-                                                    {user.lastName}
+                                                    {user.firstName ?? "ثبت نشده"}{" "}
+                                                    {user.lastName ?? "ثبت نشده"}
                                                 </p>
 
                                                 <p className="mt-1 text-xs text-slate-400">

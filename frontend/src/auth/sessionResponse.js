@@ -1,3 +1,13 @@
+import { isValidJalaaliDate } from "jalaali-js";
+
+function validBirthday(user) {
+    const parts = [user?.birthYear, user?.birthMonth, user?.birthDay];
+    if (parts.every(value => value == null)) return true;
+    if (!parts.every(Number.isSafeInteger)) return false;
+    const [year, month, day] = parts;
+    return isValidJalaaliDate(year, month, day);
+}
+
 export function parseAuthenticatedSession(
     data,
     now = Date.now(),
@@ -18,8 +28,9 @@ export function parseAuthenticatedSession(
         data.user.id > 0 &&
         typeof data.user.phone === "string" &&
         /^09\d{9}$/.test(data.user.phone) &&
-        typeof data.user.firstName === "string" &&
-        typeof data.user.lastName === "string" &&
+        (typeof data.user.firstName === "string" || data.user.firstName === null) &&
+        (typeof data.user.lastName === "string" || data.user.lastName === null) &&
+        validBirthday(data.user) &&
         ["MEMBER", "ADMIN"].includes(
             data.user.role,
         ) &&

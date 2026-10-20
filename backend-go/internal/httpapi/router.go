@@ -1,38 +1,109 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/authconfig"
 	"net/http"
+	"strings"
+	"time"
 )
 
 func NewRouter() http.Handler {
-	mux := http.NewServeMux()
+	return NewRouterWithDependencies(RouterDependencies{})
+}
 
-	mux.HandleFunc(
-		"GET /health",
-		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set(
-				"Content-Type",
-				"application/json",
-			)
+func NewRouterWithDependencies(deps RouterDependencies) http.Handler {
+	// Dispatch explicitly rather than ServeMux's path cleaning/redirects: Express
+	// matches these routes case-insensitively with an optional trailing slash and
+	// never redirects credential POSTs. Match the escaped path so encoded static
+	// route letters do not accidentally become a different accepted endpoint.
+	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := asciiLower(strings.TrimSuffix(r.URL.EscapedPath(), "/"))
+		if path == "/admin" || strings.HasPrefix(path, "/admin/") {
+			handleAdmin(w, r, deps, path)
+			return
+		}
+		methods := ""
+		switch path {
+		case "/ready":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+				defer cancel()
+				w.Header().Set("Cache-Control", "no-store")
+				if deps.Ready == nil || deps.Ready(ctx) != nil {
+					writeSecurityError(w, 503, "Service unavailable")
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				if r.Method != http.MethodHead {
+					_, _ = w.Write([]byte(`{"status":"ready"}`))
+				}
+				return
+			}
+		case "/contact/messages":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleContact(w, r, deps.Contact)
+				return
+			}
+		case "/health":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				if r.Method != http.MethodHead {
+					_ = json.NewEncoder(w).Encode(struct {
+						Status  string `json:"status"`
+						Service string `json:"service"`
+					}{Status: "ok", Service: "customer-club-api"})
+				}
+				return
+			}
+		case "/auth/request-code":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleRequestCode(w, r, deps.RequestCode)
+				return
+			}
+		case "/auth/verify-code":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				handleVerifyCode(w, r, deps.VerifyCode)
+				return
+			}
+		case "/auth/register", "/auth/login", "/auth/login/mfa", "/auth/refresh", "/auth/logout":
+			methods = "POST"
+			if r.Method == http.MethodPost {
+				sessionGuardWithEvents(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handleSession(w, r, deps, path) }), func() (authconfig.Config, error) { return deps.Auth, nil }, deps).ServeHTTP(w, r)
+				return
+			}
+		case "/auth/me":
+			methods = "GET, HEAD"
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				handleSession(w, r, deps, path)
+				return
+			}
+		}
+		if methods != "" && r.Method == http.MethodOptions {
+			w.Header().Set("Allow", methods)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte(methods))
+			return
+		}
+		writeSecurityError(w, http.StatusNotFound, "Not found")
+	})
+	return requestIDMiddleware(withJSONBoundary(router), newRequestID)
+}
 
-			w.WriteHeader(http.StatusOK)
-
-			_ = json.NewEncoder(w).Encode(
-				struct {
-					Status  string `json:"status"`
-					Service string `json:"service"`
-				}{
-					Status:  "ok",
-					Service: "customer-club-api",
-				},
-			)
-
-		},
-	)
-
-	return requestIDMiddleware(
-		mux,
-		newRequestID,
-	)
+func asciiLower(s string) string {
+	data := []byte(s)
+	for i, c := range data {
+		if c >= 'A' && c <= 'Z' {
+			data[i] = c + ('a' - 'A')
+		}
+	}
+	return string(data)
 }

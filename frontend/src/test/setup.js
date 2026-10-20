@@ -5,7 +5,7 @@ import { afterEach } from "vitest";
 Object.defineProperty(globalThis.navigator, "locks", {
     configurable: true,
     value: {
-        request: (_name, callback) => callback(),
+        request: (_name, _options, callback) => callback(),
     },
 });
 

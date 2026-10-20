@@ -9,8 +9,7 @@ import (
 
 const accessTTLSeconds = 15 * 60
 
-var errInvalidConfig =
-	errors.New("authentication configuration error")
+var errInvalidConfig = errors.New("authentication configuration error")
 
 type CookieConfig struct {
 	Name   string

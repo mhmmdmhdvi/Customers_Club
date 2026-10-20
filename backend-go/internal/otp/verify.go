@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"regexp"
-	"strings"
 
+	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/jsstring"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpdb"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/otpip"
 	"github.com/mhmmdmhdvi/Customers_Club/backend-go/internal/phone"
@@ -54,7 +54,7 @@ func (s *Service) Verify(
 
 	//Match node.js behavior:
 	//trim whitespace before validating the code.
-	code := strings.TrimSpace(rawCode)
+	code := jsstring.Trim(rawCode)
 
 	if !sixDigitPattern.MatchString(code) {
 		return ErrInvalidCode

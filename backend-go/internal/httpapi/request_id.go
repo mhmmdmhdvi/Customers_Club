@@ -29,8 +29,10 @@ func requestIDMiddleware(
 			w http.ResponseWriter,
 			r *http.Request,
 		) {
-			requestID :=
-				generateRequestID()
+			requestID := RequestIDFromContext(r.Context())
+			if requestID == "" {
+				requestID = generateRequestID()
+			}
 
 			ctx := context.WithValue(
 				r.Context(),

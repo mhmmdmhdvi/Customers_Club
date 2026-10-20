@@ -133,6 +133,38 @@ async function pasteCode(label, code) {
     return inputs;
 }
 
+it("does not exchange a late LOGIN proof after the page unmounts during verification", async () => {
+    let completeVerification;
+    const onAuthenticated = vi.fn();
+    function Reader() {
+        const value = useAuth();
+        return <output data-testid="retained-session">{value.session?.accessToken ?? "signed-out"}</output>;
+    }
+    vi.stubGlobal("fetch", vi.fn(async url => {
+        if (url.endsWith("/auth/refresh")) return { status: 401, ok: false };
+        if (url.endsWith("/auth/request-code")) return { status: 200, ok: true, json: async () => ({ message: "Code sent" }) };
+        if (url.endsWith("/auth/verify-code")) return new Promise(resolve => { completeVerification = resolve; });
+        if (url.endsWith("/auth/login")) return { status: 200, ok: true, json: async () => ({ ...sharedSession, authenticated: true }) };
+        throw new Error("Unexpected endpoint");
+    }));
+    const ui = showLogin => <ToastProvider><AuthProvider>{showLogin && <LoginPage onAuthenticated={onAuthenticated} />}<Reader /></AuthProvider></ToastProvider>;
+    const view = render(ui(true));
+    const phone = await screen.findByRole("textbox", { name: "شماره موبایل" });
+    fireEvent.change(phone, { target: { value: "09123456789" } });
+    fireEvent.click(screen.getByRole("button", { name: "دریافت کد تأیید" }));
+    await pasteCode(/کد تأیید/, "123456");
+    await waitFor(() => expect(completeVerification).toBeTypeOf("function"));
+    const verificationOptions = fetch.mock.calls.find(([url]) => url.endsWith("/auth/verify-code"))[1];
+    view.rerender(ui(false));
+    await act(async () => {
+        completeVerification({ status: 200, ok: true, json: async () => ({ authenticated: false, nextStep: "LOGIN", verificationToken: "b".repeat(64), verificationExpiresAt: new Date(Date.now() + 60000).toISOString() }) });
+    });
+    expect(fetch.mock.calls.filter(([url]) => url.endsWith("/auth/login"))).toHaveLength(0);
+    expect(verificationOptions.signal.aborted).toBe(true);
+    expect(screen.getByTestId("retained-session")).toHaveTextContent("signed-out");
+    expect(onAuthenticated).not.toHaveBeenCalled();
+});
+
 afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();

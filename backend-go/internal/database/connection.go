@@ -21,6 +21,9 @@ func Open(
 	if err != nil {
 		return nil, ErrUnavailable
 	}
+	// Prisma columns use timestamp without time zone. Defaults must preserve
+	// Node's UTC wall-clock convention regardless of URL/server/PGTZ settings.
+	poolConfig.ConnConfig.RuntimeParams["timezone"] = "UTC"
 
 	pool, err :=
 		pgxpool.NewWithConfig(

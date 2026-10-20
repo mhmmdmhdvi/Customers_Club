@@ -12,6 +12,18 @@ func sessionGuard(
 	next http.Handler,
 	getConfig func() (authconfig.Config, error),
 ) http.Handler {
+	return sessionGuardWithEvents(next, getConfig, RouterDependencies{})
+}
+func sessionGuardWithEvents(next http.Handler, getConfig func() (authconfig.Config, error), deps RouterDependencies) http.Handler {
+	reject := func(w http.ResponseWriter, r *http.Request, status int, message, eventType, reason string) {
+		a := requestAuthentication(r)
+		var actor *int64
+		if a.User.ID > 0 {
+			actor = &a.User.ID
+		}
+		securityEvent(r, deps, eventType, status, actor, map[string]any{"reason": reason})
+		writeSecurityError(w, status, message)
+	}
 	return http.HandlerFunc(
 		func(
 			w http.ResponseWriter,
@@ -24,6 +36,7 @@ func sessionGuard(
 
 			config, err := getConfig()
 			if err != nil {
+				securityEvent(r, deps, "REQUEST_SECURITY_REJECTED", 403, nil, map[string]any{"reason": "SECURITY_POLICY_REJECTED"})
 				writeSecurityError(
 					w,
 					http.StatusServiceUnavailable,
@@ -36,11 +49,7 @@ func sessionGuard(
 				r.Header.Values("Origin")
 
 			if len(origins) > 1 {
-				writeSecurityError(
-					w,
-					http.StatusForbidden,
-					"Request origin is not allowed",
-				)
+				reject(w, r, http.StatusForbidden, "Request origin is not allowed", "ORIGIN_REJECTED", "UNTRUSTED_ORIGIN")
 				return
 			}
 
@@ -49,11 +58,7 @@ func sessionGuard(
 					origins[0],
 					config.AllowedOrigins,
 				) {
-				writeSecurityError(
-					w,
-					http.StatusForbidden,
-					"Request origin is not allowed",
-				)
+				reject(w, r, http.StatusForbidden, "Request origin is not allowed", "ORIGIN_REJECTED", "UNTRUSTED_ORIGIN")
 				return
 			}
 
@@ -64,11 +69,7 @@ func sessionGuard(
 
 			if len(csrfValues) != 1 ||
 				csrfValues[0] != "1" {
-				writeSecurityError(
-					w,
-					http.StatusForbidden,
-					"CSRF protection header required",
-				)
+				reject(w, r, http.StatusForbidden, "CSRF protection header required", "CSRF_REJECTED", "MISSING_OR_INVALID_CSRF_HEADER")
 				return
 			}
 
@@ -85,11 +86,7 @@ func sessionGuard(
 			if err != nil ||
 				mediaType !=
 					"application/json" {
-				writeSecurityError(
-					w,
-					http.StatusUnsupportedMediaType,
-					"JSON request required",
-				)
+				reject(w, r, http.StatusUnsupportedMediaType, "JSON request required", "CONTENT_TYPE_REJECTED", "NON_JSON_REQUEST")
 				return
 			}
 

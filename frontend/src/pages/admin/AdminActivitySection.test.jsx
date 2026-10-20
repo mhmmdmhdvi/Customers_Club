@@ -66,6 +66,7 @@ describe("AdminActivitySection", () => {
                 .toHaveBeenCalledWith(
                     "http://localhost:3000/admin/audit?page=1&pageSize=20",
                     {
+                        signal: expect.any(AbortSignal),
                         headers: {
                             Authorization:
                                 "Bearer admin.access.token",

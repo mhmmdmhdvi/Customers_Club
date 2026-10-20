@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../../auth/request";
+import { useAuthenticatedRequest } from "../../auth/useAuthenticatedRequest";
 import {
     AlertTriangle,
     ShieldAlert,
@@ -9,9 +11,7 @@ import {
     useState,
 } from "react";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 function formatNumber(value) {
     return new Intl.NumberFormat(
@@ -90,6 +90,7 @@ function outcomeLabel(outcome) {
 export function AdminSecuritySection({
     accessToken,
 }) {
+    const request = useAuthenticatedRequest(accessToken);
     const [result, setResult] =
         useState(null);
 
@@ -98,10 +99,12 @@ export function AdminSecuritySection({
 
     useEffect(() => {
         let isCurrent = true;
+        const controller = new AbortController();
 
-        fetch(
+        request(
             `${API_BASE_URL}/admin/security?page=1&pageSize=20`,
             {
+                signal: controller.signal,
                 headers: {
                     Authorization:
                         `Bearer ${accessToken}`,
@@ -136,8 +139,9 @@ export function AdminSecuritySection({
 
         return () => {
             isCurrent = false;
+            controller.abort();
         };
-    }, [accessToken]);
+    }, [accessToken, request]);
 
     const events =
         result?.items ?? [];

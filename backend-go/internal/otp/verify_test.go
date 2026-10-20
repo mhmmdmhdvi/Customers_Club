@@ -100,6 +100,34 @@ func TestVerifyChargesIPBeforeDatabaseVerification(t *testing.T) {
 	}
 }
 
+func TestVerifyUsesNodeWhitespaceSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		code  string
+		valid bool
+	}{{"\uFEFF123456\uFEFF", true}, {"\u0085123456\u0085", false}} {
+		t.Run(tc.code, func(t *testing.T) {
+			called := false
+			service := Service{Secret: make([]byte, 32), ChargeIP: func(context.Context, []byte, string, string) error { return nil }, VerifyOTP: func(_ context.Context, _ []byte, _ string, code string, _ otpdb.OnVerifiedFunc) error {
+				called = true
+				if code != "123456" {
+					t.Errorf("code %q", code)
+				}
+				return nil
+			}}
+			err := service.Verify(context.Background(), "09121234567", tc.code, "127.0.0.1", nil)
+			if tc.valid && err != nil {
+				t.Fatal(err)
+			}
+			if !tc.valid && !errors.Is(err, ErrInvalidCode) {
+				t.Fatalf("expected invalid code, got %v", err)
+			}
+			if called != tc.valid {
+				t.Errorf("called %v want %v", called, tc.valid)
+			}
+		})
+	}
+}
+
 func TestVerifyRejectsInvalidInputsBeforeChargingIP(
 	t *testing.T,
 ) {

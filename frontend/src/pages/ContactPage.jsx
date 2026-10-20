@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../auth/request";
 import {
     Clock3,
     Mail,
@@ -15,9 +16,7 @@ import { useToast } from "../components/ui/ToastContext";
 import dashboardBanner from "../assets/images/dashboard-tehran-banner.jpg";
 import { SiteHeader } from "../components/layout/SiteHeader";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000";
+
 
 const contactItems = [
     {

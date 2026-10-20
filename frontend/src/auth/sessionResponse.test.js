@@ -21,6 +21,25 @@ function validResponse() {
 }
 
 describe("parseAuthenticatedSession", () => {
+    it("accepts explicit null legacy names and birthday", () => {
+        const data = validResponse();
+        Object.assign(data.user, { firstName: null, lastName: null, birthYear: null, birthMonth: null, birthDay: null });
+        expect(parseAuthenticatedSession(data, NOW).user).toEqual(data.user);
+    });
+
+    for (const birthday of [
+        { birthYear: 1400 },
+        { birthYear: 1400, birthMonth: null, birthDay: 1 },
+        { birthYear: 1400, birthMonth: 13, birthDay: 1 },
+        { birthYear: 1400, birthMonth: 12, birthDay: 30 },
+        { birthYear: "1400", birthMonth: 1, birthDay: 1 },
+    ]) {
+        it(`rejects malformed supplied birthday ${JSON.stringify(birthday)}`, () => {
+            const data = validResponse();
+            Object.assign(data.user, birthday);
+            expect(() => parseAuthenticatedSession(data, NOW)).toThrow("Invalid authenticated session");
+        });
+    }
     it("accepts the complete member session required by the dashboard", () => {
         const response = validResponse();
 

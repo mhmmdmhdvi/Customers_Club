@@ -1,10 +1,68 @@
 import { afterEach, expect, it, vi } from "vitest";
 
 afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.resetModules();
     localStorage.clear();
+});
+
+it("bounds waiting for another tab's lock without sending credentials", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("navigator", { locks: { request: (_name, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason))) } });
+    vi.stubGlobal("fetch", vi.fn());
+    const module = await import("./refreshSession");
+    const assertion = expect(module.refreshSession()).rejects.toMatchObject({ name: "TimeoutError" });
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+    expect(fetch).not.toHaveBeenCalled();
+    expect(localStorage.getItem("club-auth-refresh-blocked")).toBeNull();
+});
+
+it("queues a fresh login cookie exchange behind an older refresh", async () => {
+    let tail = Promise.resolve();
+    vi.stubGlobal("navigator", { locks: { request: (_name, _options, callback) => {
+        const operation = tail.then(callback); tail = operation.catch(() => {}); return operation;
+    } } });
+    let finish;
+    vi.stubGlobal("fetch", vi.fn(url => url.endsWith("/auth/refresh")
+        ? new Promise(resolve => { finish = resolve; })
+        : Promise.resolve({ status: 200, ok: true })));
+    const module = await import("./refreshSession");
+    const refresh = module.refreshSession();
+    await Promise.resolve();
+    const login = module.credentialRequest("/auth/login", { method: "POST" });
+    await Promise.resolve();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    finish({ status: 401, ok: false });
+    await Promise.all([refresh, login]);
+    expect(fetch.mock.calls.map(([url]) => new URL(url).pathname)).toEqual(["/auth/refresh", "/auth/login"]);
+});
+
+it("keeps an ambiguous block through an MFA challenge and failed logout, clearing only confirmed 204", async () => {
+    vi.stubGlobal("navigator", { locks: { request: (_name, _options, callback) => callback() } });
+    vi.stubGlobal("fetch", vi.fn()
+        .mockResolvedValueOnce({ status: 200, ok: true, json: async () => ({ authenticated: false, mfaRequired: true }) })
+        .mockResolvedValueOnce({ status: 503, ok: false })
+        .mockResolvedValueOnce({ status: 204, ok: true }));
+    const module = await import("./refreshSession");
+    localStorage.setItem("club-auth-refresh-blocked", "1");
+    const response = await module.credentialRequest("/auth/login", { method: "POST" });
+    expect((await response.json()).mfaRequired).toBe(true);
+    expect(localStorage.getItem("club-auth-refresh-blocked")).toBe("1");
+    await module.credentialRequest("/auth/logout", { method: "POST" });
+    expect(localStorage.getItem("club-auth-refresh-blocked")).toBe("1");
+    await module.credentialRequest("/auth/logout", { method: "POST" });
+    expect(localStorage.getItem("club-auth-refresh-blocked")).toBeNull();
+});
+
+it("validates a fresh authenticated grant and clears its safety block while holding the cookie lock", async () => {
+    vi.stubGlobal("navigator", { locks: { request: (_name, _options, callback) => callback() } });
+    vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200, ok: true, json: async () => ({ authenticated: true, tokenType: "Bearer", accessToken: "fresh", accessExpiresAt: new Date(Date.now() + 900000).toISOString(), user: { id: 7, phone: "09123456789", firstName: null, lastName: null, role: "MEMBER", createdAt: "2026-01-01T00:00:00Z" } }) })));
+    const module = await import("./refreshSession");
+    await module.credentialRequest("/auth/login", { method: "POST" });
+    expect(localStorage.getItem("club-auth-refresh-blocked")).toBeNull();
 });
 
 it("serializes refresh across independent page instances", async () => {
@@ -12,7 +70,7 @@ it("serializes refresh across independent page instances", async () => {
     let activeRefreshes = 0;
     let maxActiveRefreshes = 0;
 
-    const lockRequest = vi.fn((_name, callback) => {
+    const lockRequest = vi.fn((_name, _options, callback) => {
         const run = lockTail.then(() => callback());
 
         lockTail = run.catch(() => { });
@@ -86,7 +144,7 @@ it("serializes refresh across independent page instances", async () => {
 });
 
 it("blocks another tab after an ambiguous refresh failure", async () => {
-    const lockRequest = vi.fn((_name, callback) => callback());
+    const lockRequest = vi.fn((_name, _options, callback) => callback());
 
     vi.stubGlobal("navigator", {
         locks: {
@@ -168,7 +226,7 @@ it("rejects safely when cross-tab coordination is unavailable", async () => {
 });
 
 it("does not refresh when shared coordination storage is unavailable", async () => {
-    const lockRequest = vi.fn((_name, callback) => callback());
+    const lockRequest = vi.fn((_name, _options, callback) => callback());
 
     vi.stubGlobal("navigator", {
         locks: {
@@ -201,7 +259,7 @@ it("does not refresh when shared coordination storage is unavailable", async () 
 });
 
 it("does not refresh when shared coordination storage is not writable", async () => {
-    const lockRequest = vi.fn((_name, callback) => callback());
+    const lockRequest = vi.fn((_name, _options, callback) => callback());
 
     vi.stubGlobal("navigator", {
         locks: {
@@ -254,7 +312,7 @@ it("clears the refresh block best-effort when storage removal is unavailable", a
 });
 
 it("does not refresh if the safety block cannot be set before the request", async () => {
-    const lockRequest = vi.fn((_name, callback) => callback());
+    const lockRequest = vi.fn((_name, _options, callback) => callback());
 
     vi.stubGlobal("navigator", {
         locks: {

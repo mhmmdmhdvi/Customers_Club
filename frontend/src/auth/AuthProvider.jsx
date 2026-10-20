@@ -1,64 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AuthContext } from "./AuthContext";
-import {
-    clearRefreshBlock,
-    refreshSession,
-} from "./refreshSession";
+import { createSessionClient } from "./api";
 
 export function AuthProvider({ children }) {
-    const [session, setSession] = useState(null);
-    const [authStatus, setAuthStatus] = useState("restoring");
-
+    const [client] = useState(() => createSessionClient());
+    const state = useSyncExternalStore(client.subscribe, client.snapshot);
+    useEffect(() => { client.renew().catch(() => {}); }, [client]);
     useEffect(() => {
-        let isCurrent = true;
-
-        refreshSession()
-            .then((result) => {
-                if (!isCurrent) return;
-
-                if (result.kind === "authenticated") {
-                    setSession(result.session);
-                    setAuthStatus("authenticated");
-                    return;
-                }
-
-                if (result.kind === "unauthenticated") {
-                    setSession(null);
-                    setAuthStatus("unauthenticated");
-                }
-            })
-            .catch(() => {
-                if (!isCurrent) return;
-                setAuthStatus("error");
-            });
-
-        return () => {
-            isCurrent = false;
-        };
-    }, []);
-
-    function establishSession(nextSession) {
-        clearRefreshBlock();
-        setSession(nextSession);
-        setAuthStatus("authenticated");
-    }
-
-    function clearSession() {
-        clearRefreshBlock();
-        setSession(null);
-        setAuthStatus("unauthenticated");
-    }
-
-    return (
-        <AuthContext.Provider
-            value={{
-                session,
-                authStatus,
-                establishSession,
-                clearSession,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
-    );
+        if (!state.session) return;
+        const nextCheck = client.nextRenewalAt();
+        if (!Number.isFinite(nextCheck)) return;
+        const renew = () => { client.checkSession().catch(() => {}); };
+        const timer = setTimeout(renew, Math.max(0, nextCheck - Date.now()));
+        window.addEventListener("focus", renew);
+        document.addEventListener("visibilitychange", renew);
+        return () => { clearTimeout(timer); window.removeEventListener("focus", renew); document.removeEventListener("visibilitychange", renew); };
+    }, [client, state.session]);
+    const value = useMemo(() => ({ ...state, establishSession: client.establishSession, captureSession: client.captureSession, clearSession: client.clearSession, request: client.request, logout: client.logout }), [client, state]);
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

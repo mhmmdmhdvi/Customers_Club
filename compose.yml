@@ -1,0 +1,66 @@
+x-api-image: &api-image
+  image: customers-club-api:local
+  build:
+    context: .
+    dockerfile: backend-go/Dockerfile
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: club_bootstrap
+      POSTGRES_DB: club_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/bootstrap_db_password
+    secrets: [bootstrap_db_password, app_db_password]
+    volumes:
+      # PostgreSQL18 image uses versioned PGDATA beneath this parent.
+      - postgres:/var/lib/postgresql
+      - ./deployment/init-app-db.sh:/docker-entrypoint-initdb.d/10-app.sh:ro
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U club_bootstrap -d club_bootstrap"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *api-image
+    command: [migrate]
+    healthcheck: {disable: true}
+    secrets: [app_db_password]
+    networks: [database]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+  api:
+    <<: *api-image
+    env_file: ./deployment/api.env
+    environment:
+      NODE_ENV: development
+      AUTH_ALLOWED_ORIGINS: http://localhost:8080
+      TRUSTED_PROXY_CIDRS: 172.30.80.10/32
+    secrets: [app_db_password]
+    networks:
+      database: {}
+      browser: {ipv4_address: 172.30.80.11}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    stop_grace_period: 15s
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports: ["127.0.0.1:8080:80"]
+    networks:
+      browser: {ipv4_address: 172.30.80.10}
+    depends_on:
+      api: {condition: service_healthy}
+networks:
+  database: {internal: true}
+  browser:
+    ipam:
+      config: [{subnet: 172.30.80.0/24}]
+volumes:
+  postgres: {}
+secrets:
+  bootstrap_db_password: {file: ./deployment/secrets/bootstrap-db-password}
+  app_db_password: {file: ./deployment/secrets/app-db-password}

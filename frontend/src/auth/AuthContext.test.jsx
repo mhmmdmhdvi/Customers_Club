@@ -28,7 +28,7 @@ const testSession = {
 beforeEach(() => {
     vi.stubGlobal("navigator", {
         locks: {
-            request: vi.fn((_name, callback) => callback()),
+            request: vi.fn((_name, _options, callback) => callback()),
         },
     });
 
@@ -171,6 +171,7 @@ describe("AuthProvider", () => {
         expect(fetchMock).toHaveBeenCalledWith(
             expect.stringMatching(/\/auth\/refresh$/),
             {
+                signal: expect.any(AbortSignal),
                 method: "POST",
                 credentials: "include",
                 headers: {
@@ -453,7 +454,7 @@ describe("AuthProvider", () => {
         ).toBeNull();
     });
 
-    it("clears the refresh block when the shared session is cleared", async () => {
+    it("retains the refresh block when only the local session is cleared", async () => {
         localStorage.setItem("club-auth-refresh-blocked", "1");
 
         render(
@@ -483,6 +484,6 @@ describe("AuthProvider", () => {
 
         expect(
             localStorage.getItem("club-auth-refresh-blocked"),
-        ).toBeNull();
+        ).toBe("1");
     });
 });
